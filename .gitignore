@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+.yarn/
+.pnp.*
+
+# Build output
+dist/
+.output/
+.wrangler/
+build/
+
+# Test artifacts
+coverage/
+*.lcov
+.nyc_output/
+playwright-report/
+test-results/
+
+# Generated route tree
+src/routeTree.gen.ts
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+.dev.vars
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

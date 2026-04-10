@@ -1,0 +1,45 @@
+name = "voidhop"
+main = "worker/index.ts"
+compatibility_date = "2025-04-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Production environment
+# NOTE: the localhost entries below are for local `wrangler dev` convenience.
+# Remove them before `wrangler deploy` to a public hostname. The 5173-5180
+# range covers Vite's automatic fallback when stale processes hold the
+# default port.
+[vars]
+ENVIRONMENT = "production"
+ALLOWED_ORIGINS = "https://voidhop.com,https://notefade.com,http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176,http://localhost:5177,http://localhost:5178,http://localhost:5179,http://localhost:5180,http://127.0.0.1:5173"
+DAILY_WRITE_BUDGET = "950"
+
+# KV namespace — replace `id` with your real namespace ID before `wrangler deploy`.
+# Create one with: wrangler kv:namespace create VOIDHOP_KV
+[[kv_namespaces]]
+binding = "VOIDHOP_KV"
+id = "REPLACE_WITH_PRODUCTION_NAMESPACE_ID"
+preview_id = "REPLACE_WITH_PREVIEW_NAMESPACE_ID"
+
+# Local development environment
+[env.dev]
+[env.dev.vars]
+ENVIRONMENT = "development"
+ALLOWED_ORIGINS = "http://localhost:5173,https://voidhop.com,https://notefade.com"
+DAILY_WRITE_BUDGET = "950"
+
+# Static assets are NOT bound here because:
+#   1. In dev (`wrangler dev`), Vite serves the SPA on :5173 and proxies /api/*
+#      to this worker on :8787 — no asset binding needed.
+#   2. The recommended deployment model is Cloudflare Pages (for the SPA) +
+#      this Worker (for the API). Pages handles asset serving on its own.
+# If you instead want a single-Worker deployment that serves both the SPA and
+# the API, run `npm run build` first (so ./dist exists) and then re-add:
+#   [assets]
+#   directory = "./dist"
+#   binding = "ASSETS"
+#   not_found_handling = "single-page-application"
+
+# Observability — kept off by default to honor the "no analytics" principle.
+# Operators may enable this for their own deployment if they need it.
+[observability]
+enabled = false
