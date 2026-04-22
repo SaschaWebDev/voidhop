@@ -24,11 +24,16 @@ function RootLayout() {
         <Outlet />
       </main>
       <footer className="layout-footer">
-        Zero-knowledge URL shortener · Encrypted in your browser ·{" "}
-        <a href={REPO_URL} rel="noopener noreferrer" target="_blank">
-          Source
-        </a>{" "}
-        · <BuildTag />
+        <div>
+          Zero-knowledge URL shortener · Encrypted in your browser ·{" "}
+          <BuildTag />
+        </div>
+        <div>
+          Made with <span aria-label="love">❤️</span> by Sascha Majewsky ·{" "}
+          <a href={REPO_URL} rel="noopener noreferrer" target="_blank">
+            GitHub
+          </a>
+        </div>
       </footer>
     </div>
   );
