@@ -14,19 +14,67 @@ import {
   type CreateLinkRequest,
   type CreateLinkResponse,
   type GetBlobResponse,
+  type UnlockRequest,
+  type UnlockResponse,
 } from "./types";
 
 interface ErrorBody {
   error?: string;
+  attemptsLeft?: number;
+  retryAfterMs?: number;
 }
 
-async function parseErrorBody(res: Response): Promise<string | undefined> {
+async function parseErrorBody(res: Response): Promise<{
+  code?: string;
+  attemptsLeft?: number;
+  retryAfterMs?: number;
+}> {
   try {
     const json = (await res.json()) as ErrorBody;
-    return json.error;
+    // Under `exactOptionalPropertyTypes: true` we must omit absent keys,
+    // not assign `undefined` — a present key with value `undefined` does not
+    // satisfy `key?: T`.
+    const out: {
+      code?: string;
+      attemptsLeft?: number;
+      retryAfterMs?: number;
+    } = {};
+    if (json.error !== undefined) out.code = json.error;
+    if (json.attemptsLeft !== undefined) out.attemptsLeft = json.attemptsLeft;
+    if (json.retryAfterMs !== undefined) out.retryAfterMs = json.retryAfterMs;
+    return out;
   } catch {
-    return undefined;
+    return {};
   }
+}
+
+/**
+ * Build an options bag for `ApiError` that omits keys whose values are
+ * undefined. Parameter types use `| undefined` so that callers can pass
+ * raw `number | undefined` variables without tripping
+ * `exactOptionalPropertyTypes: true`.
+ */
+function apiErrorOpts(
+  parts: {
+    retryAfter?: number | undefined;
+    attemptsLeft?: number | undefined;
+    retryAfterMs?: number | undefined;
+  } = {},
+): { retryAfter?: number; attemptsLeft?: number; retryAfterMs?: number } {
+  const out: {
+    retryAfter?: number;
+    attemptsLeft?: number;
+    retryAfterMs?: number;
+  } = {};
+  if (parts.retryAfter !== undefined) out.retryAfter = parts.retryAfter;
+  if (parts.attemptsLeft !== undefined) out.attemptsLeft = parts.attemptsLeft;
+  if (parts.retryAfterMs !== undefined) out.retryAfterMs = parts.retryAfterMs;
+  return out;
+}
+
+/** Build a `RequestInit` that omits `signal` when it's undefined. */
+function reqInit(base: RequestInit, signal: AbortSignal | undefined): RequestInit {
+  return signal !== undefined ? { ...base, signal } : base;
 }
 
 function retryAfterFromHeader(res: Response): number | undefined {
@@ -48,9 +96,19 @@ function mapErrorCode(code: string | undefined): ApiErrorType {
       return "BLOB_TOO_LARGE";
     case "INVALID_BLOB":
     case "INVALID_TTL":
+    case "INVALID_VERIFIER":
+    case "INVALID_USES_LEFT":
+    case "INVALID_DELETION_TOKEN":
+    case "INVALID_DELETION_TOKEN_HASH":
       return "VALIDATION_ERROR";
     case "NOT_FOUND":
       return "NOT_FOUND";
+    case "WRONG_PASSWORD":
+      return "WRONG_PASSWORD";
+    case "LINK_DESTROYED":
+      return "LINK_DESTROYED";
+    case "BACKOFF":
+      return "BACKOFF";
     default:
       return "SERVER_ERROR";
   }
@@ -62,12 +120,17 @@ export async function createLink(
 ): Promise<CreateLinkResponse> {
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}/links`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(req),
-      signal,
-    });
+    res = await fetch(
+      `${API_BASE}/links`,
+      reqInit(
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(req),
+        },
+        signal,
+      ),
+    );
   } catch (e) {
     if (e instanceof DOMException && e.name === "AbortError") throw e;
     throw new ApiError("NETWORK_ERROR", "Could not reach VoidHop");
@@ -77,14 +140,21 @@ export async function createLink(
     return (await res.json()) as CreateLinkResponse;
   }
 
-  const code = await parseErrorBody(res);
+  const { code } = await parseErrorBody(res);
   const type = mapErrorCode(code);
   const retryAfter = retryAfterFromHeader(res);
-  throw new ApiError(type, `Create failed: ${type}`, retryAfter);
+  throw new ApiError(
+    type,
+    `Create failed: ${type}`,
+    apiErrorOpts({ retryAfter }),
+  );
 }
 
 /**
  * Fetch a blob with a single retry on 404. SRS §12.5.
+ *
+ * Returns either the blob directly (v1, unprotected) or a marker that the
+ * link is password-protected (v2). Callers should branch on `res.protected`.
  *
  * The retry callback (if provided) is invoked between the first failure and
  * the retry, so the UI can transition to a "Confirming link…" state.
@@ -123,10 +193,10 @@ async function getBlobOnce(
 ): Promise<GetBlobOnceResult> {
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}/links/${encodeURIComponent(id)}`, {
-      method: "GET",
-      signal,
-    });
+    res = await fetch(
+      `${API_BASE}/links/${encodeURIComponent(id)}`,
+      reqInit({ method: "GET" }, signal),
+    );
   } catch (e) {
     if (e instanceof DOMException && e.name === "AbortError") throw e;
     return {
@@ -142,25 +212,87 @@ async function getBlobOnce(
     return { status: "not_found" };
   }
 
-  const code = await parseErrorBody(res);
+  const { code } = await parseErrorBody(res);
   const type = mapErrorCode(code);
   const retryAfter = retryAfterFromHeader(res);
   return {
     status: "error",
-    error: new ApiError(type, `Get failed: ${type}`, retryAfter),
+    error: new ApiError(
+      type,
+      `Get failed: ${type}`,
+      apiErrorOpts({ retryAfter }),
+    ),
   };
 }
 
+/**
+ * Submit a verifier to unlock a password-protected link. SRS §4.5.
+ *
+ * On match the server returns the blob. On miss it returns 401 with the
+ * remaining attempt count. At 0 attempts the server deletes the record and
+ * responds 410 `LINK_DESTROYED`.
+ */
+export async function unlockLink(
+  id: string,
+  req: UnlockRequest,
+  signal?: AbortSignal,
+): Promise<UnlockResponse> {
+  let res: Response;
+  try {
+    res = await fetch(
+      `${API_BASE}/links/${encodeURIComponent(id)}/unlock`,
+      reqInit(
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(req),
+        },
+        signal,
+      ),
+    );
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") throw e;
+    throw new ApiError("NETWORK_ERROR", "Could not reach VoidHop");
+  }
+
+  if (res.status === 200) {
+    return (await res.json()) as UnlockResponse;
+  }
+
+  const { code, attemptsLeft, retryAfterMs } = await parseErrorBody(res);
+  const type = mapErrorCode(code);
+  const retryAfter = retryAfterFromHeader(res);
+  throw new ApiError(
+    type,
+    `Unlock failed: ${type}`,
+    apiErrorOpts({ retryAfter, attemptsLeft, retryAfterMs }),
+  );
+}
+
+/**
+ * Creator-initiated deletion via the 256-bit random token registered at
+ * create time. The server recomputes SHA-256(token) and constant-time
+ * compares with the stored hash. Missing or wrong token → 404 (uniform
+ * error surface for privacy).
+ */
 export async function deleteLink(
   id: string,
+  token: string,
   signal?: AbortSignal,
 ): Promise<void> {
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}/links/${encodeURIComponent(id)}`, {
-      method: "DELETE",
-      signal,
-    });
+    res = await fetch(
+      `${API_BASE}/links/${encodeURIComponent(id)}`,
+      reqInit(
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token }),
+        },
+        signal,
+      ),
+    );
   } catch (e) {
     if (e instanceof DOMException && e.name === "AbortError") throw e;
     throw new ApiError("NETWORK_ERROR", "Could not reach VoidHop");
@@ -175,10 +307,10 @@ export async function checkExists(
   signal?: AbortSignal,
 ): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE}/links/${encodeURIComponent(id)}`, {
-      method: "HEAD",
-      signal,
-    });
+    const res = await fetch(
+      `${API_BASE}/links/${encodeURIComponent(id)}`,
+      reqInit({ method: "HEAD" }, signal),
+    );
     return res.status === 200;
   } catch {
     return false;

@@ -3,29 +3,46 @@ main = "worker/index.ts"
 compatibility_date = "2025-04-01"
 compatibility_flags = ["nodejs_compat"]
 
-# Production environment
-# NOTE: the localhost entries below are for local `wrangler dev` convenience.
-# Remove them before `wrangler deploy` to a public hostname. The 5173-5180
-# range covers Vite's automatic fallback when stale processes hold the
-# default port.
+# ─── Production ───────────────────────────────────────────────────────────────
+# The top-level block is the "default" environment that `wrangler deploy` uses.
+
 [vars]
 ENVIRONMENT = "production"
-ALLOWED_ORIGINS = "https://voidhop.com,https://notefade.com,http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176,http://localhost:5177,http://localhost:5178,http://localhost:5179,http://localhost:5180,http://127.0.0.1:5173"
+ALLOWED_ORIGINS = "https://voidhop.com"
 DAILY_WRITE_BUDGET = "950"
 
-# KV namespace — replace `id` with your real namespace ID before `wrangler deploy`.
-# Create one with: wrangler kv:namespace create VOIDHOP_KV
+# Replace `id` with the KV namespace ID you create in the Cloudflare dashboard
+# (Storage & Databases → KV → Create a namespace). The preview_id is only used
+# when running against the Worker locally; in production it is ignored.
 [[kv_namespaces]]
 binding = "VOIDHOP_KV"
-id = "REPLACE_WITH_PRODUCTION_NAMESPACE_ID"
-preview_id = "REPLACE_WITH_PREVIEW_NAMESPACE_ID"
+id = "5e5b34c9ae5e4ffab285b4b812b4895d"
+preview_id = "5e5b34c9ae5e4ffab285b4b812b4895d"
 
-# Local development environment
+# Bind the Worker to the /api/* path on the production domain. Worker routes
+# take precedence over Pages for matching paths, so the SPA at voidhop.com
+# and the API at voidhop.com/api/* share the same origin — no CORS needed
+# for first-party requests.
+[[routes]]
+pattern = "voidhop.com/api/*"
+zone_name = "voidhop.com"
+
+# ─── Local development ────────────────────────────────────────────────────────
+# `scripts/dev.mjs` invokes `wrangler dev --env dev` so the origins below are
+# what the dev worker accepts. Wide port range covers vite's fallback when the
+# default 5173 is held.
+
 [env.dev]
 [env.dev.vars]
 ENVIRONMENT = "development"
-ALLOWED_ORIGINS = "http://localhost:5173,https://voidhop.com,https://notefade.com"
+ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176,http://localhost:5177,http://localhost:5178,http://localhost:5179,http://localhost:5180,http://127.0.0.1:5173"
 DAILY_WRITE_BUDGET = "950"
+
+# The dev environment uses a simulated-local KV via miniflare, so the ID below
+# is a stable local-only placeholder — not a real namespace.
+[[env.dev.kv_namespaces]]
+binding = "VOIDHOP_KV"
+id = "LOCAL_DEV_ONLY"
 
 # Static assets are NOT bound here because:
 #   1. In dev (`wrangler dev`), Vite serves the SPA on :5173 and proxies /api/*

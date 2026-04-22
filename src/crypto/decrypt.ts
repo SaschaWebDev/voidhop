@@ -9,9 +9,12 @@ import {
   AES_GCM_IV_BYTES,
   AES_KEY_B64URL_LENGTH,
   AES_KEY_BYTES,
+  PASSWORD_SALT_B64URL_LENGTH,
+  PASSWORD_SALT_BYTES,
 } from "@/constants";
 import { base64urlDecode, Base64UrlError } from "./encoding";
 import { unpadBytesLengthPrefix, PaddingError } from "./padding";
+import { deriveEncKey, deriveKPwd } from "./password";
 import { CryptoError } from "./types";
 
 /**
@@ -65,7 +68,7 @@ export async function decryptBlob(
   try {
     cryptoKey = await crypto.subtle.importKey(
       "raw",
-      rawKeyBytes,
+      rawKeyBytes as BufferSource,
       { name: "AES-GCM" },
       false, // extractable: false
       ["decrypt"],
@@ -78,9 +81,9 @@ export async function decryptBlob(
   let paddedPlaintext: ArrayBuffer;
   try {
     paddedPlaintext = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv },
+      { name: "AES-GCM", iv: iv as BufferSource },
       cryptoKey,
-      ciphertext,
+      ciphertext as BufferSource,
     );
   } catch {
     throw new CryptoError(
@@ -101,6 +104,108 @@ export async function decryptBlob(
       );
     }
     throw e;
+  }
+
+  return new TextDecoder("utf-8", { fatal: true }).decode(plaintextBytes);
+}
+
+/**
+ * Decrypt a password-protected blob. SRS §4.5.
+ *
+ * Derives the AES-GCM key from `fragment_key || PBKDF2(password, salt)`.
+ * Wrong password → GCM auth failure → `CryptoError("DECRYPTION_FAILED")`.
+ * Malformed salt or key → `CryptoError("KEY_INVALID" | "SALT_INVALID")`.
+ */
+export async function decryptBlobWithPassword(
+  blob: string,
+  keyB64url: string,
+  saltB64url: string,
+  password: string,
+): Promise<string> {
+  if (keyB64url.length !== AES_KEY_B64URL_LENGTH) {
+    throw new CryptoError("KEY_INVALID", "Key has wrong length");
+  }
+  if (saltB64url.length !== PASSWORD_SALT_B64URL_LENGTH) {
+    throw new CryptoError("SALT_INVALID", "Salt has wrong length");
+  }
+  if (password.length === 0) {
+    throw new CryptoError("PASSWORD_EMPTY", "Password must not be empty");
+  }
+
+  // Decode the blob.
+  let payload: Uint8Array;
+  try {
+    payload = base64urlDecode(blob);
+  } catch (e) {
+    if (e instanceof Base64UrlError) {
+      throw new CryptoError("BLOB_INVALID", "Blob is not valid base64url");
+    }
+    throw e;
+  }
+  if (payload.length < AES_GCM_IV_BYTES + 1) {
+    throw new CryptoError("BLOB_INVALID", "Blob is too short");
+  }
+
+  const iv = payload.slice(0, AES_GCM_IV_BYTES);
+  const ciphertext = payload.slice(AES_GCM_IV_BYTES);
+
+  // Decode the fragment key.
+  let fragmentKey: Uint8Array;
+  try {
+    fragmentKey = base64urlDecode(keyB64url);
+  } catch {
+    throw new CryptoError("KEY_INVALID", "Key is not valid base64url");
+  }
+  if (fragmentKey.length !== AES_KEY_BYTES) {
+    throw new CryptoError("KEY_INVALID", "Key is not 32 bytes");
+  }
+
+  // Decode the salt.
+  let salt: Uint8Array;
+  try {
+    salt = base64urlDecode(saltB64url);
+  } catch {
+    throw new CryptoError("SALT_INVALID", "Salt is not valid base64url");
+  }
+  if (salt.length !== PASSWORD_SALT_BYTES) {
+    throw new CryptoError("SALT_INVALID", "Salt has wrong byte length");
+  }
+
+  const kPwd = await deriveKPwd(password, salt);
+
+  let plaintextBytes: Uint8Array;
+  try {
+    const cryptoKey = await deriveEncKey(fragmentKey, kPwd, "decrypt");
+
+    let paddedPlaintext: ArrayBuffer;
+    try {
+      paddedPlaintext = await crypto.subtle.decrypt(
+        { name: "AES-GCM", iv },
+        cryptoKey,
+        ciphertext,
+      );
+    } catch {
+      throw new CryptoError(
+        "DECRYPTION_FAILED",
+        "Decryption failed — wrong password, tampered blob, or wrong key",
+      );
+    }
+
+    try {
+      plaintextBytes = unpadBytesLengthPrefix(new Uint8Array(paddedPlaintext));
+    } catch (e) {
+      if (e instanceof PaddingError) {
+        throw new CryptoError(
+          "PADDING_INVALID",
+          "Decrypted payload has invalid padding",
+        );
+      }
+      throw e;
+    }
+  } finally {
+    // Scrub key material. Per SR-KEY-01.
+    crypto.getRandomValues(fragmentKey);
+    crypto.getRandomValues(kPwd);
   }
 
   return new TextDecoder("utf-8", { fatal: true }).decode(plaintextBytes);

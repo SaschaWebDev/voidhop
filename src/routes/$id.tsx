@@ -10,6 +10,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useRedirect } from "@/hooks/use-redirect";
 import { RedirectStatus } from "@/components/redirect-status";
 import { ErrorDisplay } from "@/components/error-display";
+import { PasswordPrompt } from "@/components/password-prompt";
 import type { RedirectError } from "@/hooks/use-redirect";
 
 export const Route = createFileRoute("/$id")({
@@ -18,10 +19,33 @@ export const Route = createFileRoute("/$id")({
 
 function RedirectPage() {
   const { id } = Route.useParams();
-  const { state, error, destinationHref } = useRedirect(id);
+  const {
+    state,
+    error,
+    destinationHref,
+    attemptsLeft,
+    passwordError,
+    backoffUntil,
+    submitPassword,
+  } = useRedirect(id);
 
   if (state === "error" && error) {
     return <RedirectErrorView error={error} />;
+  }
+
+  if (
+    (state === "password-required" || state === "verifying") &&
+    attemptsLeft !== null
+  ) {
+    return (
+      <PasswordPrompt
+        attemptsLeft={attemptsLeft}
+        busy={state === "verifying"}
+        errorMessage={passwordError}
+        backoffUntil={backoffUntil}
+        onSubmit={(password) => submitPassword?.(password)}
+      />
+    );
   }
 
   const status = statusLabel(state);
@@ -39,6 +63,8 @@ function statusLabel(state: string): string {
       return "Loading…";
     case "confirming":
       return "Confirming link…";
+    case "verifying":
+      return "Verifying password…";
     case "decrypting":
       return "Decrypting in your browser…";
     case "validating":
@@ -67,11 +93,25 @@ function RedirectErrorView({ error }: { error: RedirectError }) {
           message="The decryption key is missing from the URL. Make sure you copied the full link."
         />
       );
+    case "MISSING_SALT":
+      return (
+        <ErrorDisplay
+          title="This link is incomplete."
+          message="The password salt is missing or malformed. The link was likely truncated in transit — ask the sender for the full URL."
+        />
+      );
     case "NOT_FOUND":
       return (
         <ErrorDisplay
           title="This link has expired or does not exist."
           message="VoidHop links automatically expire — there is nothing to recover."
+        />
+      );
+    case "LINK_DESTROYED":
+      return (
+        <ErrorDisplay
+          title="This link has been permanently destroyed."
+          message="Too many wrong password attempts. VoidHop deletes password-protected links after five misses to prevent brute-force guessing — even the correct password will no longer work."
         />
       );
     case "TAMPERED":

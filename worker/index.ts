@@ -11,13 +11,13 @@
  */
 
 import { Hono } from "hono";
-import type { Env } from "./types";
+import type { HonoEnv } from "./types";
 import { securityHeadersMiddleware } from "./middleware/security-headers";
 import { corsMiddleware } from "./middleware/cors";
 import { mountLinksRoutes } from "./routes/links";
 import { mountHealthRoutes } from "./routes/health";
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<HonoEnv>();
 
 // 1. Security headers — outermost wrapper. Applies to ALL responses.
 app.use("*", securityHeadersMiddleware);

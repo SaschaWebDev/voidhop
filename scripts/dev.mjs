@@ -24,15 +24,23 @@ const COLORS = {
   dim: "\x1b[2m",
 };
 
-function isPortFree(port) {
+function tryBind(port, host) {
   return new Promise((resolve) => {
     const server = createServer();
     server.once("error", () => resolve(false));
     server.once("listening", () => {
       server.close(() => resolve(true));
     });
-    server.listen(port, "127.0.0.1");
+    server.listen(port, host);
   });
+}
+
+// Probe both v4 and v6 loopback. On Windows, vite resolves `localhost` to
+// `::1` first, so an IPv6-only conflict would otherwise slip past a v4-only
+// probe and cause vite to fail under `--strictPort`.
+async function isPortFree(port) {
+  if (!(await tryBind(port, "127.0.0.1"))) return false;
+  return tryBind(port, "::1");
 }
 
 async function findFreePort(start) {
@@ -90,7 +98,7 @@ const vite = spawn(
 
 const worker = spawn(
   "npx",
-  ["wrangler", "dev", "--port", String(workerPort)],
+  ["wrangler", "dev", "--env", "dev", "--port", String(workerPort)],
   { stdio: ["ignore", "pipe", "pipe"], shell: true, env: childEnv },
 );
 

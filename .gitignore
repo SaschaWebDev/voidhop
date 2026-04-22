@@ -8,6 +8,7 @@ dist/
 .output/
 .wrangler/
 build/
+*.tsbuildinfo
 
 # Test artifacts
 coverage/

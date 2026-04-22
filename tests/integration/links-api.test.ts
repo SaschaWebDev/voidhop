@@ -43,10 +43,15 @@ async function fetchMf(
   if (!headers.has("CF-Connecting-IP")) {
     headers.set("CF-Connecting-IP", "203.0.113.42");
   }
-  return mf.dispatchFetch(`http://test.local${path}`, {
+  // Miniflare's Response / HeadersInit types derive from undici, which
+  // diverge from the lib.dom equivalents in TS 5.7+. Runtime behaviour is
+  // identical for our purposes; punch through the mismatch.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const dispatch: any = mf.dispatchFetch;
+  return dispatch(`http://test.local${path}`, {
     ...init,
     headers,
-  });
+  }) as Promise<Response>;
 }
 
 const SAMPLE_BLOB = "A".repeat(120); // valid base64url, fits in 1 KB tier

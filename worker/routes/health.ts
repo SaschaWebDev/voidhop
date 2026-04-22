@@ -6,7 +6,7 @@
  */
 
 import type { Hono } from "hono";
-import type { Env } from "../types";
+import type { HonoEnv } from "../types";
 import { rateLimitMiddleware } from "../middleware/rate-limit";
 import { todayKey } from "../middleware/daily-budget";
 
@@ -15,7 +15,7 @@ const PER_ORIGIN_BUDGET_FRACTION: Readonly<Record<string, number>> = {
   "https://notefade.com": 0.6,
 };
 
-export function mountHealthRoutes(app: Hono<{ Bindings: Env }>): void {
+export function mountHealthRoutes(app: Hono<HonoEnv>): void {
   app.get(
     "/api/v1/health",
     rateLimitMiddleware({
