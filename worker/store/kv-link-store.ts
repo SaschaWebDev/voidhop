@@ -32,6 +32,18 @@ export class CloudflareKVLinkStore implements LinkStore {
     });
   }
 
+  async update(
+    id: string,
+    record: LinkRecord,
+    ttlSeconds: number,
+  ): Promise<void> {
+    // No existence check — overwrites unconditionally. Used by the unlock
+    // route to decrement the attempts counter on miss and reset it on match.
+    await this.kv.put(LINK_KEY_PREFIX + id, JSON.stringify(record), {
+      expirationTtl: ttlSeconds,
+    });
+  }
+
   async get(id: string): Promise<LinkRecord | null> {
     const raw = await this.kv.get(LINK_KEY_PREFIX + id);
     if (raw === null) return null;

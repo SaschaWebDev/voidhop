@@ -14,6 +14,13 @@ export interface LinkStore {
    */
   put(id: string, record: LinkRecord, ttlSeconds: number): Promise<void>;
 
+  /**
+   * Overwrite an existing record in place. Unlike `put`, does not enforce the
+   * no-overwrite contract — used for counter updates on password-protected
+   * links (v2). Callers must have already verified the record exists.
+   */
+  update(id: string, record: LinkRecord, ttlSeconds: number): Promise<void>;
+
   /** Retrieve a link record, or `null` if missing or expired. */
   get(id: string): Promise<LinkRecord | null>;
 

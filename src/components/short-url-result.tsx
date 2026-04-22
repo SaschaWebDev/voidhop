@@ -41,6 +41,40 @@ export function ShortUrlResult({ result, onCreateAnother }: ShortUrlResultProps)
         <CopyButton text={result.shortUrl} />
       </div>
       <p className="result-meta">Expires {expiry}</p>
+      {result.usesLeft !== undefined ? (
+        <p className="result-meta" style={{ color: "var(--accent-fg)" }}>
+          Self-destructs after{" "}
+          {result.usesLeft === 1 ? "one read" : `${result.usesLeft} reads`}.
+        </p>
+      ) : null}
+      {result.passwordProtected ? (
+        <p className="result-meta" style={{ color: "var(--accent-fg)" }}>
+          Password-protected. Share the password with the recipient{" "}
+          <em>separately</em> — not in the same message as this link.
+        </p>
+      ) : null}
+      {result.deleteUrl ? (
+        <div
+          className="result-url"
+          style={{ marginTop: 12 }}
+          aria-label="Delete URL"
+        >
+          <input
+            type="text"
+            value={result.deleteUrl}
+            readOnly
+            aria-label="Delete URL"
+            onFocus={(e) => e.currentTarget.select()}
+          />
+          <CopyButton text={result.deleteUrl} />
+        </div>
+      ) : null}
+      {result.deleteUrl ? (
+        <p className="result-meta" style={{ color: "var(--warning-fg)" }}>
+          <strong>Delete URL</strong> — save this separately. Anyone with it
+          can destroy the link. You won't see it again.
+        </p>
+      ) : null}
       <div className="result-qr" ref={qrRef} aria-label="QR code" />
       <div style={{ marginTop: 16 }}>
         <button type="button" className="btn" onClick={onCreateAnother}>

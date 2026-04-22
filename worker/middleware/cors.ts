@@ -41,6 +41,7 @@ export function corsMiddleware(): MiddlewareHandler<{ Bindings: Env }> {
       c.res.headers.set("Access-Control-Allow-Origin", origin);
       c.res.headers.set("Vary", "Origin");
     }
+    return;
   };
 }
 

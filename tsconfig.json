@@ -26,6 +26,8 @@
 
     "types": ["vite/client", "vitest/globals"],
 
+    "noEmit": true,
+
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]

@@ -9,7 +9,7 @@
  */
 
 import type { MiddlewareHandler } from "hono";
-import type { Env } from "../types";
+import type { Env, HonoEnv } from "../types";
 import { resolveAllowedOrigin } from "./cors";
 
 const PER_ORIGIN_BUDGET_FRACTION: Readonly<Record<string, number>> = {
@@ -46,7 +46,7 @@ export function secondsUntilUtcMidnight(): number {
   return Math.ceil((tomorrow.getTime() - now.getTime()) / 1000);
 }
 
-export function dailyBudgetMiddleware(): MiddlewareHandler<{ Bindings: Env }> {
+export function dailyBudgetMiddleware(): MiddlewareHandler<HonoEnv> {
   return async (c, next) => {
     const date = todayKey();
     const globalLimit = parseInt(c.env.DAILY_WRITE_BUDGET, 10);

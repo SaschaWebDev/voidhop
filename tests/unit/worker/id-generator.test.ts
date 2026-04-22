@@ -14,6 +14,9 @@ class MemoryStore implements LinkStore {
     if (this.map.has(id)) throw new IdCollisionError();
     this.map.set(id, record);
   }
+  async update(id: string, record: LinkRecord): Promise<void> {
+    this.map.set(id, record);
+  }
   async get(id: string): Promise<LinkRecord | null> {
     return this.map.get(id) ?? null;
   }
@@ -63,6 +66,9 @@ describe("generateAndReserveId", () => {
     // Patch a store whose `exists` always returns true to force the failure path.
     const alwaysCollides: LinkStore = {
       async put() {
+        /* noop */
+      },
+      async update() {
         /* noop */
       },
       async get() {

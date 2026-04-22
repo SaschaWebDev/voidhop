@@ -2,8 +2,35 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import { resolve } from "node:path";
+import { execSync } from "node:child_process";
+
+/**
+ * Resolve the git commit SHA of the current build. Falls back to "dev" when
+ * run outside a git work tree or when `git` is unavailable (e.g. on a
+ * stripped-down CI image). This is consumed by the footer so visitors can
+ * verify the running code matches a specific public commit.
+ */
+function resolveBuildSha(): string {
+  try {
+    const sha = execSync("git rev-parse HEAD", {
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+      .toString()
+      .trim();
+    return /^[a-f0-9]{40}$/.test(sha) ? sha : "dev";
+  } catch {
+    return "dev";
+  }
+}
+
+const BUILD_SHA = resolveBuildSha();
+const BUILD_SHA_SHORT = BUILD_SHA === "dev" ? "dev" : BUILD_SHA.slice(0, 7);
 
 export default defineConfig({
+  define: {
+    __BUILD_SHA__: JSON.stringify(BUILD_SHA),
+    __BUILD_SHA_SHORT__: JSON.stringify(BUILD_SHA_SHORT),
+  },
   plugins: [
     TanStackRouterVite({
       routesDirectory: "./src/routes",
@@ -40,10 +67,5 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
-  },
-  test: {
-    globals: true,
-    environment: "happy-dom",
-    include: ["tests/unit/**/*.test.ts", "tests/unit/**/*.test.tsx"],
   },
 });

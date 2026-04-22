@@ -8,15 +8,31 @@
 
 import type { MiddlewareHandler } from "hono";
 
+// CSP kept in sync with `public/_headers` (the one that actually protects
+// browsers loading the SPA from Cloudflare Pages). Browsers largely ignore
+// most CSP directives on JSON responses, but this serves two purposes:
+//   1. Defense in depth if someone later enables asset binding on the Worker
+//      so it serves HTML too.
+//   2. Any XHR that a compromised caller sent with an `Accept: text/html`
+//      and got surprising data back would still be contained.
+const CSP =
+  "default-src 'self'; " +
+  "script-src 'self'; " +
+  "style-src 'self' 'unsafe-inline'; " +
+  "img-src 'self' data:; " +
+  "connect-src 'self'; " +
+  "font-src 'self'; " +
+  "object-src 'none'; " +
+  "base-uri 'none'; " +
+  "frame-ancestors 'none'; " +
+  "form-action 'self'";
+
 const HEADERS: ReadonlyArray<[string, string]> = [
   ["Cache-Control", "no-store, no-cache"],
   ["Referrer-Policy", "no-referrer"],
   ["X-Content-Type-Options", "nosniff"],
   ["X-Frame-Options", "DENY"],
-  [
-    "Content-Security-Policy",
-    "default-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'",
-  ],
+  ["Content-Security-Policy", CSP],
   ["Permissions-Policy", "interest-cohort=()"],
   [
     "Strict-Transport-Security",
