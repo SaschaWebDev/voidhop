@@ -17,8 +17,10 @@ coverage/
 playwright-report/
 test-results/
 
-# Generated route tree
-src/routeTree.gen.ts
+# Generated route tree — committed so CI can typecheck route imports
+# without running the TanStack Router plugin first. The plugin regenerates
+# it automatically on every dev/build, so local drift is self-healing.
+# src/routeTree.gen.ts
 
 # Editor / OS
 .vscode/*
