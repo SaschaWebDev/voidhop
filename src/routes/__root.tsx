@@ -1,4 +1,9 @@
-import { createRootRoute, Link, Outlet } from "@tanstack/react-router";
+import {
+  createRootRoute,
+  Link,
+  Outlet,
+  useRouterState,
+} from "@tanstack/react-router";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { REPO_URL } from "@/constants";
 
@@ -6,7 +11,41 @@ export const Route = createRootRoute({
   component: RootLayout,
 });
 
+/**
+ * Paths that render a "full-bleed" design experience and suppress the
+ * default header/footer chrome. The /1-/10 numbered routes are the
+ * design-variant gallery; /designs is the index that links to them.
+ */
+const FULL_BLEED_PATHS = new Set<string>([
+  "/designs",
+  "/1",
+  "/2",
+  "/3",
+  "/4",
+  "/5",
+  "/6",
+  "/7",
+  "/8",
+  "/9",
+  "/10",
+  "/11",
+  "/12",
+]);
+
 function RootLayout() {
+  const pathname = useRouterState({
+    select: (s) => s.location.pathname,
+  });
+  const fullBleed = FULL_BLEED_PATHS.has(pathname);
+
+  if (fullBleed) {
+    return (
+      <div className="layout-fullbleed">
+        <Outlet />
+      </div>
+    );
+  }
+
   return (
     <div className="layout">
       <header className="layout-header">
@@ -39,12 +78,6 @@ function RootLayout() {
   );
 }
 
-/**
- * Renders the build identifier. In a production build this is a link to the
- * exact commit on the public source repo; in development it is a muted
- * `dev` label. The purpose is verifiability — a visitor can confirm that
- * the code running in their browser matches the audited source.
- */
 function BuildTag() {
   if (__BUILD_SHA__ === "dev") {
     return (

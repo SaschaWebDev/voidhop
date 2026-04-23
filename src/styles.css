@@ -112,6 +112,14 @@ button:focus-visible {
   flex-direction: column;
 }
 
+/* Design-variant routes (/1-/10, /designs) own the entire viewport; the
+   wrapper stays out of their way. Each design paints its own background. */
+.layout-fullbleed {
+  flex: 1;
+  min-height: 100vh;
+  display: block;
+}
+
 .layout-header {
   border-bottom: 1px solid var(--border);
   background: var(--bg-elevated);
