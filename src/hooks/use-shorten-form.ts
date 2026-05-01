@@ -8,9 +8,12 @@ import {
 } from "@/utils/humanize-errors";
 
 /**
- * Shared URL-shortener form state + submit handler. The ten design variants
- * at /1-/10 all consume this so their submit logic is identical to the
- * canonical CreatePage; only the rendering differs.
+ * Shared URL-shortener form state + submit handler used by the home page.
+ *
+ * Every shortened link comes back with a revocation URL — the deletion
+ * token is no longer opt-in. The server still only ever stores the SHA-256
+ * hash of the token (the token itself lives only in the URL fragment we
+ * hand back to the creator), so the privacy posture is unchanged.
  */
 export function useShortenForm() {
   const [url, setUrl] = useState("");
@@ -21,7 +24,6 @@ export function useShortenForm() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [usesLeft, setUsesLeft] = useState<number | undefined>(undefined);
-  const [includeDeletionToken, setIncludeDeletionToken] = useState(false);
   const create = useCreateLink();
 
   const isBusy = create.state === "encrypting" || create.state === "uploading";
@@ -47,7 +49,7 @@ export function useShortenForm() {
     await create.mutate(validation.value, ttl, {
       ...(protect ? { password } : {}),
       ...(usesLeft !== undefined ? { usesLeft } : {}),
-      ...(includeDeletionToken ? { includeDeletionToken: true } : {}),
+      includeDeletionToken: true,
     });
     return true;
   };
@@ -59,7 +61,6 @@ export function useShortenForm() {
     setConfirmPassword("");
     setPasswordError(null);
     setUsesLeft(undefined);
-    setIncludeDeletionToken(false);
     create.reset();
   };
 
@@ -91,8 +92,6 @@ export function useShortenForm() {
     passwordError,
     usesLeft,
     setUsesLeft,
-    includeDeletionToken,
-    setIncludeDeletionToken,
     isBusy,
     state: create.state,
     result: create.result,
