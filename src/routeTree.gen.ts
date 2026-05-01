@@ -10,20 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as NotFoundRouteImport } from './routes/not-found'
-import { Route as DesignsRouteImport } from './routes/designs'
 import { Route as AboutRouteImport } from './routes/about'
-import { Route as R9RouteImport } from './routes/9'
-import { Route as R8RouteImport } from './routes/8'
-import { Route as R7RouteImport } from './routes/7'
-import { Route as R6RouteImport } from './routes/6'
-import { Route as R5RouteImport } from './routes/5'
-import { Route as R4RouteImport } from './routes/4'
-import { Route as R3RouteImport } from './routes/3'
-import { Route as R2RouteImport } from './routes/2'
-import { Route as R12RouteImport } from './routes/12'
-import { Route as R11RouteImport } from './routes/11'
-import { Route as R10RouteImport } from './routes/10'
-import { Route as R1RouteImport } from './routes/1'
 import { Route as IdRouteImport } from './routes/$id'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DeleteIdRouteImport } from './routes/delete.$id'
@@ -33,74 +20,9 @@ const NotFoundRoute = NotFoundRouteImport.update({
   path: '/not-found',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DesignsRoute = DesignsRouteImport.update({
-  id: '/designs',
-  path: '/designs',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AboutRoute = AboutRouteImport.update({
   id: '/about',
   path: '/about',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const R9Route = R9RouteImport.update({
-  id: '/9',
-  path: '/9',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const R8Route = R8RouteImport.update({
-  id: '/8',
-  path: '/8',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const R7Route = R7RouteImport.update({
-  id: '/7',
-  path: '/7',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const R6Route = R6RouteImport.update({
-  id: '/6',
-  path: '/6',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const R5Route = R5RouteImport.update({
-  id: '/5',
-  path: '/5',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const R4Route = R4RouteImport.update({
-  id: '/4',
-  path: '/4',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const R3Route = R3RouteImport.update({
-  id: '/3',
-  path: '/3',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const R2Route = R2RouteImport.update({
-  id: '/2',
-  path: '/2',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const R12Route = R12RouteImport.update({
-  id: '/12',
-  path: '/12',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const R11Route = R11RouteImport.update({
-  id: '/11',
-  path: '/11',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const R10Route = R10RouteImport.update({
-  id: '/10',
-  path: '/10',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const R1Route = R1RouteImport.update({
-  id: '/1',
-  path: '/1',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IdRoute = IdRouteImport.update({
@@ -122,40 +44,14 @@ const DeleteIdRoute = DeleteIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$id': typeof IdRoute
-  '/1': typeof R1Route
-  '/10': typeof R10Route
-  '/11': typeof R11Route
-  '/12': typeof R12Route
-  '/2': typeof R2Route
-  '/3': typeof R3Route
-  '/4': typeof R4Route
-  '/5': typeof R5Route
-  '/6': typeof R6Route
-  '/7': typeof R7Route
-  '/8': typeof R8Route
-  '/9': typeof R9Route
   '/about': typeof AboutRoute
-  '/designs': typeof DesignsRoute
   '/not-found': typeof NotFoundRoute
   '/delete/$id': typeof DeleteIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$id': typeof IdRoute
-  '/1': typeof R1Route
-  '/10': typeof R10Route
-  '/11': typeof R11Route
-  '/12': typeof R12Route
-  '/2': typeof R2Route
-  '/3': typeof R3Route
-  '/4': typeof R4Route
-  '/5': typeof R5Route
-  '/6': typeof R6Route
-  '/7': typeof R7Route
-  '/8': typeof R8Route
-  '/9': typeof R9Route
   '/about': typeof AboutRoute
-  '/designs': typeof DesignsRoute
   '/not-found': typeof NotFoundRoute
   '/delete/$id': typeof DeleteIdRoute
 }
@@ -163,103 +59,22 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$id': typeof IdRoute
-  '/1': typeof R1Route
-  '/10': typeof R10Route
-  '/11': typeof R11Route
-  '/12': typeof R12Route
-  '/2': typeof R2Route
-  '/3': typeof R3Route
-  '/4': typeof R4Route
-  '/5': typeof R5Route
-  '/6': typeof R6Route
-  '/7': typeof R7Route
-  '/8': typeof R8Route
-  '/9': typeof R9Route
   '/about': typeof AboutRoute
-  '/designs': typeof DesignsRoute
   '/not-found': typeof NotFoundRoute
   '/delete/$id': typeof DeleteIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    | '/'
-    | '/$id'
-    | '/1'
-    | '/10'
-    | '/11'
-    | '/12'
-    | '/2'
-    | '/3'
-    | '/4'
-    | '/5'
-    | '/6'
-    | '/7'
-    | '/8'
-    | '/9'
-    | '/about'
-    | '/designs'
-    | '/not-found'
-    | '/delete/$id'
+  fullPaths: '/' | '/$id' | '/about' | '/not-found' | '/delete/$id'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/$id'
-    | '/1'
-    | '/10'
-    | '/11'
-    | '/12'
-    | '/2'
-    | '/3'
-    | '/4'
-    | '/5'
-    | '/6'
-    | '/7'
-    | '/8'
-    | '/9'
-    | '/about'
-    | '/designs'
-    | '/not-found'
-    | '/delete/$id'
-  id:
-    | '__root__'
-    | '/'
-    | '/$id'
-    | '/1'
-    | '/10'
-    | '/11'
-    | '/12'
-    | '/2'
-    | '/3'
-    | '/4'
-    | '/5'
-    | '/6'
-    | '/7'
-    | '/8'
-    | '/9'
-    | '/about'
-    | '/designs'
-    | '/not-found'
-    | '/delete/$id'
+  to: '/' | '/$id' | '/about' | '/not-found' | '/delete/$id'
+  id: '__root__' | '/' | '/$id' | '/about' | '/not-found' | '/delete/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   IdRoute: typeof IdRoute
-  R1Route: typeof R1Route
-  R10Route: typeof R10Route
-  R11Route: typeof R11Route
-  R12Route: typeof R12Route
-  R2Route: typeof R2Route
-  R3Route: typeof R3Route
-  R4Route: typeof R4Route
-  R5Route: typeof R5Route
-  R6Route: typeof R6Route
-  R7Route: typeof R7Route
-  R8Route: typeof R8Route
-  R9Route: typeof R9Route
   AboutRoute: typeof AboutRoute
-  DesignsRoute: typeof DesignsRoute
   NotFoundRoute: typeof NotFoundRoute
   DeleteIdRoute: typeof DeleteIdRoute
 }
@@ -273,102 +88,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NotFoundRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/designs': {
-      id: '/designs'
-      path: '/designs'
-      fullPath: '/designs'
-      preLoaderRoute: typeof DesignsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/about': {
       id: '/about'
       path: '/about'
       fullPath: '/about'
       preLoaderRoute: typeof AboutRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/9': {
-      id: '/9'
-      path: '/9'
-      fullPath: '/9'
-      preLoaderRoute: typeof R9RouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/8': {
-      id: '/8'
-      path: '/8'
-      fullPath: '/8'
-      preLoaderRoute: typeof R8RouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/7': {
-      id: '/7'
-      path: '/7'
-      fullPath: '/7'
-      preLoaderRoute: typeof R7RouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/6': {
-      id: '/6'
-      path: '/6'
-      fullPath: '/6'
-      preLoaderRoute: typeof R6RouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/5': {
-      id: '/5'
-      path: '/5'
-      fullPath: '/5'
-      preLoaderRoute: typeof R5RouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/4': {
-      id: '/4'
-      path: '/4'
-      fullPath: '/4'
-      preLoaderRoute: typeof R4RouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/3': {
-      id: '/3'
-      path: '/3'
-      fullPath: '/3'
-      preLoaderRoute: typeof R3RouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/2': {
-      id: '/2'
-      path: '/2'
-      fullPath: '/2'
-      preLoaderRoute: typeof R2RouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/12': {
-      id: '/12'
-      path: '/12'
-      fullPath: '/12'
-      preLoaderRoute: typeof R12RouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/11': {
-      id: '/11'
-      path: '/11'
-      fullPath: '/11'
-      preLoaderRoute: typeof R11RouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/10': {
-      id: '/10'
-      path: '/10'
-      fullPath: '/10'
-      preLoaderRoute: typeof R10RouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/1': {
-      id: '/1'
-      path: '/1'
-      fullPath: '/1'
-      preLoaderRoute: typeof R1RouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$id': {
@@ -398,20 +122,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   IdRoute: IdRoute,
-  R1Route: R1Route,
-  R10Route: R10Route,
-  R11Route: R11Route,
-  R12Route: R12Route,
-  R2Route: R2Route,
-  R3Route: R3Route,
-  R4Route: R4Route,
-  R5Route: R5Route,
-  R6Route: R6Route,
-  R7Route: R7Route,
-  R8Route: R8Route,
-  R9Route: R9Route,
   AboutRoute: AboutRoute,
-  DesignsRoute: DesignsRoute,
   NotFoundRoute: NotFoundRoute,
   DeleteIdRoute: DeleteIdRoute,
 }

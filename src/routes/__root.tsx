@@ -13,24 +13,11 @@ export const Route = createRootRoute({
 
 /**
  * Paths that render a "full-bleed" design experience and suppress the
- * default header/footer chrome. The /1-/10 numbered routes are the
- * design-variant gallery; /designs is the index that links to them.
+ * default header/footer chrome. The home route paints its own portal
+ * background, header, and footer; the root chrome would only get in
+ * the way.
  */
-const FULL_BLEED_PATHS = new Set<string>([
-  "/designs",
-  "/1",
-  "/2",
-  "/3",
-  "/4",
-  "/5",
-  "/6",
-  "/7",
-  "/8",
-  "/9",
-  "/10",
-  "/11",
-  "/12",
-]);
+const FULL_BLEED_PATHS = new Set<string>(["/"]);
 
 function RootLayout() {
   const pathname = useRouterState({
