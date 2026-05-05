@@ -8,7 +8,7 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 ENVIRONMENT = "production"
-ALLOWED_ORIGINS = "https://voidhop.com"
+ALLOWED_ORIGINS = "https://voidhop.com,https://notefade.com"
 DAILY_WRITE_BUDGET = "950"
 
 # Replace `id` with the KV namespace ID you create in the Cloudflare dashboard

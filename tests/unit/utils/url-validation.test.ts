@@ -30,9 +30,49 @@ describe("validateInputUrl", () => {
     }
   });
 
-  it("rejects scheme-less inputs", () => {
-    expect(validateInputUrl("example.com").ok).toBe(false);
-    expect(validateInputUrl("//example.com").ok).toBe(false);
+  it("auto-prepends https:// to bare hosts so casual paste input works", () => {
+    const r1 = validateInputUrl("example.com");
+    expect(r1.ok).toBe(true);
+    if (r1.ok) expect(r1.value).toBe("https://example.com");
+
+    const r2 = validateInputUrl("example.com/path?q=v");
+    expect(r2.ok).toBe(true);
+    if (r2.ok) expect(r2.value).toBe("https://example.com/path?q=v");
+
+    // host:port style — was previously rejected because new URL("localhost:3000")
+    // throws; with auto-prepend it now resolves to https://localhost:3000.
+    const r3 = validateInputUrl("localhost:3000");
+    expect(r3.ok).toBe(true);
+    if (r3.ok) expect(r3.value).toBe("https://localhost:3000");
+  });
+
+  it("trims surrounding whitespace before prepending", () => {
+    const r = validateInputUrl("  google.com  ");
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value).toBe("https://google.com");
+  });
+
+  it("does not double-prepend when a scheme is already present", () => {
+    const r = validateInputUrl("https://example.com");
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value).toBe("https://example.com");
+  });
+
+  it("rejects non-hierarchical dangerous schemes up-front (no XSS via auto-prepend)", () => {
+    // These have no `://`, so without an explicit guard we'd glue
+    // `https://` in front of them — and at least `mailto:foo@bar.com` would
+    // then parse cleanly (with the email becoming userinfo + host bar.com).
+    // The dangerous-scheme guard rejects them before the prepend can happen.
+    for (const bad of [
+      "javascript:alert(1)",
+      "data:text/html,<script>",
+      "mailto:foo@bar.com",
+      "tel:+15551234",
+    ]) {
+      const r = validateInputUrl(bad);
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.error.type).toBe("UNSUPPORTED_SCHEME");
+    }
   });
 });
 
