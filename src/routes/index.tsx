@@ -153,7 +153,8 @@ function Home() {
 
                 <VoidField label="destination">
                   <input
-                    type="url"
+                    type="text"
+                    inputMode="url"
                     className={`vp-input${f.url ? " on" : ""}`}
                     placeholder="https://paste a url…"
                     value={f.url}
@@ -161,6 +162,8 @@ function Home() {
                     disabled={hopping}
                     spellCheck={false}
                     autoComplete="off"
+                    autoCapitalize="off"
+                    autoCorrect="off"
                     autoFocus
                     required
                   />
@@ -372,9 +375,11 @@ function VoidResult({
 
   return (
     <div className="vp-result">
-      <div className="vp-result-kicker">◦ sealed · past the horizon</div>
+      <div className="vp-result-kicker">
+        Shortened · Only you know the destination
+      </div>
       <h2 className="vp-result-title">
-        Gone. <em>Here's your key.</em>
+        Done. <em>Here's your link.</em>
       </h2>
 
       <div className="vp-result-url-row">
@@ -409,8 +414,8 @@ function VoidResult({
             <dt>reads</dt>
             <dd>
               {usesLeft === 1
-                ? "self-destruct after one"
-                : `${usesLeft} reads remain`}
+                ? "self-destruct after first use"
+                : `${usesLeft} usages remain`}
             </dd>
           </div>
         )}
@@ -418,7 +423,9 @@ function VoidResult({
 
       {deleteUrl && (
         <div className="vp-revoke">
-          <div className="vp-revoke-label">revocation url · save this</div>
+          <div className="vp-revoke-label">
+            DELETE URL · save this for deletion
+          </div>
           <code>{deleteUrl}</code>
         </div>
       )}
@@ -426,7 +433,7 @@ function VoidResult({
       <div className="vp-result-foot">
         <div className="vp-qr" ref={qrRef} aria-label="QR code" />
         <button type="button" className="vp-reset" onClick={onReset}>
-          Seal another
+          Shorten another link
         </button>
       </div>
     </div>
