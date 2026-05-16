@@ -3,6 +3,7 @@ import { copyToClipboard } from "@/hooks/use-shorten-form";
 import { ResultUrlRow } from "@/components/home/result-url-row";
 import { ShareRow } from "@/components/home/share-row";
 import { RevokeBlock } from "@/components/home/revoke-block";
+import styles from "@/routes/index.module.css";
 
 const COPY_FEEDBACK_MS = 1400;
 const SHAKE_MS = 500;
@@ -68,18 +69,18 @@ export function ResultPanel({
   };
 
   return (
-    <div className="vp-result">
-      <span className="vp-sr-only" aria-live="polite">
+    <div>
+      <span className={styles.srOnly} aria-live="polite">
         {copied
           ? "Short URL copied to clipboard."
           : deleteCopied
             ? "Delete URL copied to clipboard."
             : ""}
       </span>
-      <div className="vp-result-kicker">
+      <div className={styles.resultKicker}>
         Shortened · Only you know the destination
       </div>
-      <h2 className="vp-result-title">
+      <h2 className={styles.resultTitle}>
         Done. <em>Here's your link.</em>
       </h2>
 
@@ -91,7 +92,7 @@ export function ResultPanel({
         onCopy={onCopyShort}
       />
 
-      <dl className="vp-meta">
+      <dl className={styles.meta}>
         <div>
           <dt>expires</dt>
           <dd>{expiry}</dd>
@@ -124,7 +125,7 @@ export function ResultPanel({
         />
       )}
 
-      <button type="button" className="vp-reset" onClick={onResetClick}>
+      <button type="button" className={styles.reset} onClick={onResetClick}>
         Shorten another link
       </button>
     </div>

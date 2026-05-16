@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import qrcode from "qrcode-generator";
 import { IconDoodlyArrow } from "@/components/icons";
+import styles from "@/routes/index.module.css";
 
 interface ResultUrlRowProps {
   shortUrl: string;
@@ -35,20 +36,22 @@ export function ResultUrlRow({
   }, [shortUrl]);
 
   return (
-    <div className="vp-result-row">
-      <div className={`vp-result-url-row${shaking ? " warn" : ""}`}>
+    <div className={styles.resultRow}>
+      <div
+        className={`${styles.resultUrlRow}${shaking ? ` ${styles.warn}` : ""}`}
+      >
         {!hasCopiedOnce && (
-          <div className="vp-doodly-arrow" aria-hidden="true">
-            <span className="vp-doodly-text">copy this</span>
+          <div className={styles.doodlyArrow} aria-hidden="true">
+            <span className={styles.doodlyText}>copy this</span>
             <IconDoodlyArrow />
           </div>
         )}
-        <span className="vp-result-url">{shortUrl}</span>
-        <button type="button" className="vp-result-copy" onClick={onCopy}>
+        <span className={styles.resultUrl}>{shortUrl}</span>
+        <button type="button" className={styles.resultCopy} onClick={onCopy}>
           {copied ? "Copied ✓" : "Copy"}
         </button>
       </div>
-      <div className="vp-qr" aria-label="QR code">
+      <div className={styles.qr} aria-label="QR code">
         {qrSrc ? <img src={qrSrc} alt="" /> : null}
       </div>
     </div>

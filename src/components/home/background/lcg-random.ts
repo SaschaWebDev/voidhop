@@ -1,6 +1,6 @@
 /**
  * Pure linear-congruential generator for decorative backgrounds (Stars,
- * VoidPortal). Reproducible from a seed — useful for stable star/particle
+ * Portal). Reproducible from a seed — useful for stable star/particle
  * positions across renders with the same viewport size.
  *
  * Uses the Numerical Recipes constants. Not cryptographically secure; do

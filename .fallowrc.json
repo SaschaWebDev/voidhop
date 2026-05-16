@@ -5,6 +5,10 @@
     {
       "file": "src/constants/index.ts",
       "exports": ["*"]
+    },
+    {
+      "file": "src/routes/index.module.css",
+      "exports": ["*"]
     }
   ]
 }

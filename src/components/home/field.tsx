@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
+import styles from "@/routes/index.module.css";
 
-interface VoidFieldProps {
+interface FieldProps {
   label: string;
   htmlFor?: string;
   labelId?: string;
@@ -19,20 +20,15 @@ interface VoidFieldProps {
  *
  * Pass exactly one of the two, or neither for a purely visual label.
  */
-export function VoidField({
-  label,
-  htmlFor,
-  labelId,
-  children,
-}: VoidFieldProps) {
+export function Field({ label, htmlFor, labelId, children }: FieldProps) {
   return (
-    <div className="vp-field">
+    <div className={styles.field}>
       {htmlFor ? (
-        <label className="vp-field-label" htmlFor={htmlFor}>
+        <label className={styles.fieldLabel} htmlFor={htmlFor}>
           {label}
         </label>
       ) : (
-        <div className="vp-field-label" id={labelId}>
+        <div className={styles.fieldLabel} id={labelId}>
           {label}
         </div>
       )}

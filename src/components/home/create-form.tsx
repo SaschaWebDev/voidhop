@@ -1,8 +1,9 @@
 import type { useShortenForm } from "@/hooks/use-shorten-form";
-import { VoidField } from "@/components/void-field";
-import { VoidCheckbox } from "@/components/void-checkbox";
+import { Field } from "@/components/home/field";
+import { Checkbox } from "@/components/home/checkbox";
 import { PasswordField } from "@/components/home/password-field";
 import { TTL_OPTIONS, USES_LEFT_OPTIONS } from "@/constants";
+import styles from "@/routes/index.module.css";
 
 interface CreateFormProps {
   form: ReturnType<typeof useShortenForm>;
@@ -24,15 +25,15 @@ export function CreateForm({ form: f }: CreateFormProps) {
         f.submit();
       }}
     >
-      <div className="vp-card-title">Shorten a link</div>
-      <div className="vp-card-sub">Your URL is only known to you</div>
+      <div className={styles.cardTitle}>Shorten a link</div>
+      <div className={styles.cardSub}>Your URL is only known to you</div>
 
-      <VoidField label="destination" htmlFor="vp-destination">
+      <Field label="destination" htmlFor="home-destination">
         <input
-          id="vp-destination"
+          id="home-destination"
           type="text"
           inputMode="url"
-          className={`vp-input${f.url ? " on" : ""}`}
+          className={`${styles.input}${f.url ? ` ${styles.on}` : ""}`}
           placeholder="https://yourdestination.com"
           value={f.url}
           onChange={(e) => f.onUrlChange(e.target.value)}
@@ -45,15 +46,15 @@ export function CreateForm({ form: f }: CreateFormProps) {
           required
         />
         {f.inputError && (
-          <div className="vp-err-inline">{f.inputError}</div>
+          <div className={styles.errInline}>{f.inputError}</div>
         )}
-      </VoidField>
+      </Field>
 
-      <VoidField label="expires in" labelId="vp-ttl-label">
+      <Field label="expires in" labelId="home-ttl-label">
         <div
-          className="vp-ttl"
+          className={styles.ttl}
           role="radiogroup"
-          aria-labelledby="vp-ttl-label"
+          aria-labelledby="home-ttl-label"
         >
           {TTL_OPTIONS.map((o) => {
             const checked = f.ttl === o.seconds;
@@ -63,7 +64,7 @@ export function CreateForm({ form: f }: CreateFormProps) {
                 type="button"
                 role="radio"
                 aria-checked={checked}
-                className={`vp-ttl-btn${checked ? " on" : ""}`}
+                className={`${styles.ttlBtn}${checked ? ` ${styles.on}` : ""}`}
                 onClick={() => f.setTtl(o.seconds)}
                 disabled={hopping}
               >
@@ -72,12 +73,12 @@ export function CreateForm({ form: f }: CreateFormProps) {
             );
           })}
         </div>
-      </VoidField>
+      </Field>
 
-      <VoidField label="usage limit" htmlFor="vp-uses-left">
+      <Field label="usage limit" htmlFor="home-uses-left">
         <select
-          id="vp-uses-left"
-          className="vp-select"
+          id="home-uses-left"
+          className={styles.select}
           value={f.usesLeft === undefined ? "" : String(f.usesLeft)}
           onChange={(e) =>
             f.setUsesLeft(
@@ -95,16 +96,16 @@ export function CreateForm({ form: f }: CreateFormProps) {
             </option>
           ))}
         </select>
-      </VoidField>
+      </Field>
 
-      <div className="vp-toggles">
-        <VoidCheckbox
+      <div className={styles.toggles}>
+        <Checkbox
           checked={f.protect}
           onChange={f.setProtect}
           disabled={hopping}
         >
           Redirect requires password
-        </VoidCheckbox>
+        </Checkbox>
       </div>
 
       {f.protect && (
@@ -115,12 +116,12 @@ export function CreateForm({ form: f }: CreateFormProps) {
         />
       )}
       {f.passwordError && (
-        <div className="vp-err-inline">{f.passwordError}</div>
+        <div className={styles.errInline}>{f.passwordError}</div>
       )}
 
       <button
         type="submit"
-        className="vp-submit"
+        className={styles.submit}
         data-active={f.url.trim().length > 0 ? "1" : "0"}
         disabled={hopping || f.url.trim().length === 0}
       >
@@ -132,7 +133,7 @@ export function CreateForm({ form: f }: CreateFormProps) {
       </button>
 
       {f.errorMessage && (
-        <div className="vp-err-block">{f.errorMessage}</div>
+        <div className={styles.errBlock}>{f.errorMessage}</div>
       )}
     </form>
   );

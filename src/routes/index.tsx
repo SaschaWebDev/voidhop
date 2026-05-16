@@ -1,5 +1,5 @@
 /**
- * Home — Void Portal.
+ * Home — voidhop's landing-and-tool route.
  *
  * Thin route shell that composes the cosmic background, header, hero, the
  * create-or-result panel, and the footer. All form/result state lives in
@@ -7,8 +7,10 @@
  * components under src/components/home/ so this file stays small and
  * grep-able.
  *
- * Self-hosted fonts are imported here so the route bundle pulls them in;
- * `index.css` carries the entire vp-* design (see styles.css for tokens).
+ * Self-hosted fonts are imported here so the route bundle pulls them in.
+ * The cosmic-design styles live in `index.module.css` as a CSS Module:
+ * Vite hashes each class name per file, so no prefix is needed to avoid
+ * collisions with the global styles in `src/styles.css`.
  */
 
 import "@fontsource/fraunces/300.css";
@@ -23,14 +25,14 @@ import "@fontsource/jetbrains-mono/400.css";
 
 import { createFileRoute } from "@tanstack/react-router";
 import { useShortenForm, formatExpiry } from "@/hooks/use-shorten-form";
-import { Stars, VoidPortal } from "@/components/void-portal";
+import { Stars, Portal } from "@/components/home/background";
 import { PageHeader } from "@/components/home/page-header";
 import { PageFooter } from "@/components/home/page-footer";
 import { Hero } from "@/components/home/hero";
 import { CreateForm } from "@/components/home/create-form";
 import { ResultPanel } from "@/components/home/result-panel";
 
-import "./index.css";
+import styles from "./index.module.css";
 
 export const Route = createFileRoute("/")({ component: Home });
 
@@ -39,18 +41,20 @@ function Home() {
   const hopping = f.isBusy;
 
   return (
-    <div className="vp-root">
+    <div className={styles.root}>
       <Stars />
-      <VoidPortal />
-      <div className="vp-noise" aria-hidden="true" />
+      <Portal />
+      <div className={styles.noise} aria-hidden="true" />
 
       <PageHeader />
 
-      <main className="vp-main">
+      <main className={styles.main}>
         <Hero />
 
-        <section className={`vp-card${hopping ? " hopping" : ""}`}>
-          <div className="vp-shimmer" aria-hidden="true" />
+        <section
+          className={`${styles.card}${hopping ? ` ${styles.hopping}` : ""}`}
+        >
+          <div className={styles.shimmer} aria-hidden="true" />
           {f.state === "success" && f.result ? (
             <ResultPanel
               shortUrl={f.result.shortUrl}

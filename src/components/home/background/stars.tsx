@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useViewportSize } from "@/hooks/use-viewport-size";
+import styles from "@/routes/index.module.css";
 import { createLcgRandom } from "./lcg-random";
 
 const STAR_COUNT = 160;
@@ -35,7 +36,12 @@ export function Stars() {
   }, [size.w, size.h]);
 
   return (
-    <svg className="vp-stars" width={size.w} height={size.h} aria-hidden="true">
+    <svg
+      className={styles.stars}
+      width={size.w}
+      height={size.h}
+      aria-hidden="true"
+    >
       {stars.map((s, i) => (
         <circle key={i} cx={s.x} cy={s.y} r={s.r} fill="#fff" opacity={s.o} />
       ))}

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
+import styles from "@/routes/index.module.css";
 
-interface VoidCheckboxProps {
+interface CheckboxProps {
   checked: boolean;
   onChange: (next: boolean) => void;
   disabled?: boolean;
@@ -12,21 +13,23 @@ interface VoidCheckboxProps {
  * type="checkbox"> wrapped in a <label>, so click-on-label and keyboard
  * focus work for free.
  */
-export function VoidCheckbox({
+export function Checkbox({
   checked,
   onChange,
   disabled,
   children,
-}: VoidCheckboxProps) {
+}: CheckboxProps) {
   return (
-    <label className={`vp-check${disabled ? " disabled" : ""}`}>
+    <label
+      className={`${styles.check}${disabled ? ` ${styles.disabled}` : ""}`}
+    >
       <input
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
         disabled={disabled}
       />
-      <span className="vp-check-box">
+      <span className={styles.checkBox}>
         {checked && (
           <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
             <path
