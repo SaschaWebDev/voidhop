@@ -393,6 +393,65 @@ function VoidCheckbox({
   );
 }
 
+function IconWhatsApp() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M13.601 2.326A7.854 7.854 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.099-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function IconTelegram() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M14.3 1.7L1.4 6.8c-.5.2-.5.6 0 .7l3.3 1 1.3 4c.1.4.2.5.5.5s.3-.1.4-.2l1.8-1.8 3.3 2.4c.4.2.7.1.8-.4L14.9 2.5c.1-.6-.2-.9-.6-.8zM5.3 8.2l6.3-3.9-4.8 4.4-.2 2.1-1.3-2.6z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function IconEmail() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <rect
+        x="2"
+        y="3.5"
+        width="12"
+        height="9"
+        rx="1.5"
+        stroke="currentColor"
+        strokeWidth="1.2"
+      />
+      <path
+        d="M2.5 4L8 8.5 13.5 4"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function IconShare() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M4 10V12a1 1 0 001 1h6a1 1 0 001-1V10M8 2v7.5M5.5 4.5L8 2l2.5 2.5"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function IconDoodlyArrow() {
   return (
     <svg width="48" height="31" viewBox="0 0 60 39" fill="none" aria-hidden="true">
@@ -437,6 +496,8 @@ function VoidResult({
   const [warned, setWarned] = useState(false);
   const [shaking, setShaking] = useState(false);
   const qrRef = useRef<HTMLDivElement>(null);
+  const canShare =
+    typeof navigator !== "undefined" && typeof navigator.share === "function";
 
   useEffect(() => {
     if (!qrRef.current) return;
@@ -503,6 +564,51 @@ function VoidResult({
           </div>
         )}
       </dl>
+
+      <div className="vp-share">
+        <span className="vp-share-label">SHARE VIA</span>
+        <div className="vp-share-icons">
+          <a
+            href={`https://wa.me/?text=${encodeURIComponent(shortUrl)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="vp-share-icon"
+            title="share via WhatsApp"
+          >
+            <IconWhatsApp />
+          </a>
+          <a
+            href={`https://t.me/share/url?url=${encodeURIComponent(shortUrl)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="vp-share-icon"
+            title="share via Telegram"
+          >
+            <IconTelegram />
+          </a>
+          <a
+            href={`mailto:?subject=${encodeURIComponent("Short link")}&body=${encodeURIComponent(shortUrl)}`}
+            className="vp-share-icon"
+            title="share via email"
+          >
+            <IconEmail />
+          </a>
+          {canShare && (
+            <button
+              type="button"
+              className="vp-share-icon"
+              onClick={() => {
+                navigator
+                  .share({ title: "voidhop", url: shortUrl })
+                  .catch(() => {});
+              }}
+              title="share link"
+            >
+              <IconShare />
+            </button>
+          )}
+        </div>
+      </div>
 
       {deleteUrl && (
         <div className="vp-revoke">
@@ -1377,6 +1483,50 @@ const css = `
 @media (max-width: 420px) {
   .vp-meta dt {
     flex-basis: 70px;
+  }
+}
+.vp-share {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 18px;
+}
+.vp-share-label {
+  font-family: ${vp.mono};
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  color: ${vp.accent2};
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.vp-share-icons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.vp-share-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(180, 160, 255, 0.06);
+  border: 1px solid rgba(180, 160, 255, 0.18);
+  color: ${vp.inkDim};
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.15s;
+}
+.vp-share-icon:hover {
+  background: rgba(180, 160, 255, 0.14);
+  color: ${vp.ink};
+  border-color: ${vp.accent};
+  transform: translateY(-1px);
+}
+@media (max-width: 540px) {
+  .vp-share {
+    flex-wrap: wrap;
   }
 }
 .vp-revoke {
