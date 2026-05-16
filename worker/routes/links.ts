@@ -484,6 +484,53 @@ async function handleMiss(
 
 // ─── Mount routes ─────────────────────────────────────────────────────────────
 
+/**
+ * Body of the POST /api/v1/links handler — extracted out of the inline
+ * Hono arrow so the unit suite can exercise the validate → reserve-id →
+ * persist → increment-budget pipeline without standing up Miniflare.
+ *
+ * Exported for tests; the public worker surface remains
+ * `mountLinksRoutes`.
+ */
+export async function handleCreateLink(c: Context<HonoEnv>): Promise<Response> {
+  const parsed = await parseJsonObject(c);
+  if (!parsed.ok) return c.json({ error: "INVALID_BLOB" }, 400);
+
+  const validated = parseCreateInput(parsed.obj);
+  if (!validated.ok) return c.json(validated.body, validated.status);
+  const { input } = validated;
+
+  const store = new CloudflareKVLinkStore(c.env.VOIDHOP_KV);
+  let id: string;
+  try {
+    id = await generateAndReserveId(store);
+  } catch (e) {
+    if (e instanceof IdCollisionError) {
+      return c.json({ error: "STORAGE_ERROR" }, 503);
+    }
+    throw e;
+  }
+
+  const record = buildLinkRecord(input, new Date().toISOString());
+  try {
+    await store.put(id, record, input.ttl);
+  } catch (e) {
+    return c.json(
+      { error: "STORAGE_ERROR" },
+      e instanceof IdCollisionError ? 503 : 500,
+    );
+  }
+
+  await tryIncrementBudgets(
+    c.env,
+    c.get("budgetGlobalCount") ?? 0,
+    c.get("budgetOrigin") ?? null,
+    c.get("budgetOriginCount") ?? null,
+  );
+
+  return c.json({ id }, 201);
+}
+
 export function mountLinksRoutes(app: Hono<HonoEnv>): void {
   // POST /api/v1/links — create. Order: rate limit → daily budget → handler.
   app.post(
@@ -494,44 +541,7 @@ export function mountLinksRoutes(app: Hono<HonoEnv>): void {
       limit: 20,
     }),
     dailyBudgetMiddleware(),
-    async (c) => {
-      const parsed = await parseJsonObject(c);
-      if (!parsed.ok) return c.json({ error: "INVALID_BLOB" }, 400);
-
-      const validated = parseCreateInput(parsed.obj);
-      if (!validated.ok) return c.json(validated.body, validated.status);
-      const { input } = validated;
-
-      const store = new CloudflareKVLinkStore(c.env.VOIDHOP_KV);
-      let id: string;
-      try {
-        id = await generateAndReserveId(store);
-      } catch (e) {
-        if (e instanceof IdCollisionError) {
-          return c.json({ error: "STORAGE_ERROR" }, 503);
-        }
-        throw e;
-      }
-
-      const record = buildLinkRecord(input, new Date().toISOString());
-      try {
-        await store.put(id, record, input.ttl);
-      } catch (e) {
-        return c.json(
-          { error: "STORAGE_ERROR" },
-          e instanceof IdCollisionError ? 503 : 500,
-        );
-      }
-
-      await tryIncrementBudgets(
-        c.env,
-        c.get("budgetGlobalCount") ?? 0,
-        c.get("budgetOrigin") ?? null,
-        c.get("budgetOriginCount") ?? null,
-      );
-
-      return c.json({ id }, 201);
-    },
+    handleCreateLink,
   );
 
   // GET /api/v1/links/:id — retrieve.

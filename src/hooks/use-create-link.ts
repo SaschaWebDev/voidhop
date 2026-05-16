@@ -65,13 +65,70 @@ export interface UseCreateLinkResult {
 }
 
 /** Local-side encrypt result, neutral over v1/v2 + opt-in deletion token. */
-interface EncryptedPayload {
+export interface EncryptedPayload {
   blob: string;
   keyB64url: string;
   saltB64url: string | null;
   verifierB64url: string | null;
   deletionTokenB64url: string | null;
   deletionTokenHashB64url: string | null;
+}
+
+/**
+ * Outcome of the local-encrypt step. Either succeeds with a payload or
+ * surfaces a typed `CryptoError`. Non-CryptoError throwables are
+ * re-thrown — they're programmer errors, not flow control.
+ */
+export type EncryptStepResult =
+  | { ok: true; payload: EncryptedPayload }
+  | { ok: false; error: CryptoError };
+
+/**
+ * Run the local encrypt step. Pure orchestration over the crypto module —
+ * exported so the mutate state machine can compose it instead of
+ * inlining a try/catch and so the unit suite can hit every branch
+ * directly.
+ */
+export async function runEncryptStep(
+  url: string,
+  password: string | undefined,
+  includeDeletionToken: boolean,
+): Promise<EncryptStepResult> {
+  try {
+    const payload = await encryptForUpload(url, password, includeDeletionToken);
+    return { ok: true, payload };
+  } catch (e) {
+    if (e instanceof CryptoError) return { ok: false, error: e };
+    throw e;
+  }
+}
+
+/**
+ * Outcome of the network upload step. `aborted` is its own variant
+ * because callers must distinguish "user navigated away" (silent return)
+ * from "server said no" (surface the error).
+ */
+export type UploadStepResult =
+  | { ok: true; id: string }
+  | { ok: false; kind: "aborted" }
+  | { ok: false; kind: "api-error"; error: ApiError };
+
+export async function runUploadStep(
+  payload: EncryptedPayload,
+  ttlSeconds: number,
+  usesLeft: number | undefined,
+  signal: AbortSignal,
+): Promise<UploadStepResult> {
+  try {
+    const id = await uploadEncrypted(payload, ttlSeconds, usesLeft, signal);
+    return { ok: true, id };
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") {
+      return { ok: false, kind: "aborted" };
+    }
+    if (e instanceof ApiError) return { ok: false, kind: "api-error", error: e };
+    throw e;
+  }
 }
 
 export function useCreateLink(): UseCreateLinkResult {
@@ -93,7 +150,6 @@ export function useCreateLink(): UseCreateLinkResult {
       abortRef.current?.abort();
       const ac = new AbortController();
       abortRef.current = ac;
-
       setError(null);
       setResult(null);
 
@@ -101,38 +157,30 @@ export function useCreateLink(): UseCreateLinkResult {
       const usesLeft = options?.usesLeft;
       const includeDeletionToken = options?.includeDeletionToken === true;
 
-      // Local crypto step.
       setState("encrypting");
-      let payload: EncryptedPayload;
-      try {
-        payload = await encryptForUpload(url, password, includeDeletionToken);
-      } catch (e) {
-        if (e instanceof CryptoError) {
-          setError(e);
-          setState("error");
-          return;
-        }
-        throw e;
+      const enc = await runEncryptStep(url, password, includeDeletionToken);
+      if (!enc.ok) {
+        setError(enc.error);
+        setState("error");
+        return;
       }
-
       if (ac.signal.aborted) return;
 
-      // Network step.
       setState("uploading");
-      let id: string;
-      try {
-        id = await uploadEncrypted(payload, ttlSeconds, usesLeft, ac.signal);
-      } catch (e) {
-        if (e instanceof DOMException && e.name === "AbortError") return;
-        if (e instanceof ApiError) {
-          setError(e);
-          setState("error");
-          return;
-        }
-        throw e;
+      const up = await runUploadStep(
+        enc.payload,
+        ttlSeconds,
+        usesLeft,
+        ac.signal,
+      );
+      if (!up.ok) {
+        if (up.kind === "aborted") return;
+        setError(up.error);
+        setState("error");
+        return;
       }
 
-      setResult(buildShortLinkResult(payload, id, ttlSeconds, usesLeft));
+      setResult(buildShortLinkResult(enc.payload, up.id, ttlSeconds, usesLeft));
       setState("success");
     },
     [],
