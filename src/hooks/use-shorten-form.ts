@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { useCreateLink } from "@/hooks/use-create-link";
+import { useUrlInput } from "@/hooks/use-url-input";
+import { usePasswordProtection } from "@/hooks/use-password-protection";
+import { useMultiUse } from "@/hooks/use-multi-use";
 import { validateInputUrl } from "@/utils/url-validation";
 import { DEFAULT_TTL_SECONDS } from "@/constants";
 import {
@@ -8,70 +11,59 @@ import {
 } from "@/utils/humanize-errors";
 
 /**
- * Shared URL-shortener form state + submit handler used by the home page.
+ * Composition wrapper that wires the four create-form concerns together
+ * (URL input, password protection, multi-use counter, server mutation)
+ * into a single object suitable for the home page. The public surface is
+ * stable — callers don't need to know the underlying split.
  *
  * Every shortened link comes back with a revocation URL — the deletion
- * token is no longer opt-in. The server still only ever stores the SHA-256
- * hash of the token (the token itself lives only in the URL fragment we
- * hand back to the creator), so the privacy posture is unchanged.
+ * token is no longer opt-in. The server still only ever stores the
+ * SHA-256 hash of the token (the token itself lives only in the URL
+ * fragment we hand back to the creator), so the privacy posture is
+ * unchanged.
  */
 export function useShortenForm() {
-  const [url, setUrl] = useState("");
-  const [ttl, setTtl] = useState<number>(DEFAULT_TTL_SECONDS);
-  const [inputError, setInputError] = useState<string | null>(null);
-  const [protect, setProtect] = useState(false);
-  const [password, setPassword] = useState("");
-  const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [usesLeft, setUsesLeft] = useState<number | undefined>(undefined);
   const create = useCreateLink();
+  const urlInput = useUrlInput(() => {
+    // Clear a prior result/error as soon as the user edits the URL — the
+    // panel below should reflect the new input, not the previous run.
+    if (create.state === "success" || create.state === "error") {
+      create.reset();
+    }
+  });
+  const pwd = usePasswordProtection();
+  const multiUse = useMultiUse();
+  const [ttl, setTtl] = useState<number>(DEFAULT_TTL_SECONDS);
 
   const isBusy = create.state === "encrypting" || create.state === "uploading";
 
-  const onProtectChange = (next: boolean) => {
-    setProtect(next);
-    if (!next) {
-      setPassword("");
-      setPasswordError(null);
-    }
-  };
-
-  const submit = async () => {
-    setInputError(null);
-    setPasswordError(null);
-    const validation = validateInputUrl(url);
+  const submit = async (): Promise<boolean> => {
+    urlInput.setInputError(null);
+    pwd.setPasswordError(null);
+    const validation = validateInputUrl(urlInput.url);
     if (!validation.ok) {
-      setInputError(humanizeInputError(validation.error.type));
+      urlInput.setInputError(humanizeInputError(validation.error.type));
       return false;
     }
-    if (protect) {
-      if (password.length === 0) {
-        setPasswordError("Please enter a password.");
-        return false;
-      }
+    if (pwd.protect && pwd.password.length === 0) {
+      pwd.setPasswordError("Please enter a password.");
+      return false;
     }
     await create.mutate(validation.value, ttl, {
-      ...(protect ? { password } : {}),
-      ...(usesLeft !== undefined ? { usesLeft } : {}),
+      ...(pwd.protect ? { password: pwd.password } : {}),
+      ...(multiUse.usesLeft !== undefined
+        ? { usesLeft: multiUse.usesLeft }
+        : {}),
       includeDeletionToken: true,
     });
     return true;
   };
 
-  const reset = () => {
-    setUrl("");
-    setProtect(false);
-    setPassword("");
-    setPasswordError(null);
-    setUsesLeft(undefined);
+  const reset = (): void => {
+    urlInput.reset();
+    pwd.reset();
+    multiUse.reset();
     create.reset();
-  };
-
-  const onUrlChange = (next: string) => {
-    setUrl(next);
-    setInputError(null);
-    if (create.state === "success" || create.state === "error") {
-      create.reset();
-    }
   };
 
   const errorMessage =
@@ -80,18 +72,18 @@ export function useShortenForm() {
       : null;
 
   return {
-    url,
-    onUrlChange,
+    url: urlInput.url,
+    onUrlChange: urlInput.onUrlChange,
     ttl,
     setTtl,
-    inputError,
-    protect,
-    setProtect: onProtectChange,
-    password,
-    setPassword,
-    passwordError,
-    usesLeft,
-    setUsesLeft,
+    inputError: urlInput.inputError,
+    protect: pwd.protect,
+    setProtect: pwd.setProtect,
+    password: pwd.password,
+    setPassword: pwd.setPassword,
+    passwordError: pwd.passwordError,
+    usesLeft: multiUse.usesLeft,
+    setUsesLeft: multiUse.setUsesLeft,
     isBusy,
     state: create.state,
     result: create.result,
@@ -102,25 +94,18 @@ export function useShortenForm() {
 }
 
 export function copyToClipboard(text: string): Promise<boolean> {
-  if (navigator.clipboard?.writeText) {
-    return navigator.clipboard.writeText(text).then(
-      () => true,
-      () => false,
-    );
-  }
-  try {
-    const el = document.createElement("textarea");
-    el.value = text;
-    el.style.position = "absolute";
-    el.style.left = "-9999px";
-    document.body.appendChild(el);
-    el.select();
-    const ok = document.execCommand("copy");
-    document.body.removeChild(el);
-    return Promise.resolve(ok);
-  } catch {
+  // `navigator.clipboard.writeText` is available in every browser we
+  // target. The deprecated `document.execCommand("copy")` fallback used to
+  // live here but was removed — modern browsers no longer require it and
+  // the fallback was unreliable in practice. If the API is unavailable
+  // (e.g. insecure context), surface `false` so callers can degrade.
+  if (!navigator.clipboard?.writeText) {
     return Promise.resolve(false);
   }
+  return navigator.clipboard.writeText(text).then(
+    () => true,
+    () => false,
+  );
 }
 
 export function formatExpiry(expiresAt: string): string {

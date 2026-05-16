@@ -67,7 +67,11 @@ function DeletePage() {
     setState("deleting");
     try {
       await deleteLink(id, tokenRef.current);
-      // Scrub the token from memory after use.
+      // Best-effort scrub: dropping the reference lets the GC reclaim the
+      // string. JavaScript can't securely wipe a String value's bytes (no
+      // typed-array view into the heap), so this is a hint, not a
+      // guarantee. The token is one-use anyway — a successful DELETE has
+      // already invalidated it server-side.
       tokenRef.current = null;
       setState("deleted");
     } catch (e) {
