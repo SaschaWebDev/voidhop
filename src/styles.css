@@ -25,6 +25,38 @@
   --radius-sm: 4px;
 }
 
+/*
+ * Void Portal design tokens — scoped to .vp-root only.
+ *
+ * The home route lives inside `<div class="vp-root">` and renders the
+ * cosmic-dark cluster regardless of the html.dark toggle. Keeping these
+ * tokens scoped (instead of on :root) means the rest of the app's light/
+ * dark variables remain unshadowed. The route stylesheet lives at
+ * src/routes/index.css and consumes these via var(--vp-*).
+ */
+.vp-root {
+  --vp-bg: #07050f;
+  --vp-bg-mid: #120a24;
+  --vp-ink: #ece8ff;
+  --vp-ink-dim: rgba(236, 232, 255, 0.6);
+  --vp-ink-faint: rgba(236, 232, 255, 0.3);
+  --vp-ink-doodle: rgba(236, 232, 255, 0.42);
+  --vp-ink-doodle-text: rgba(236, 232, 255, 0.5);
+  --vp-accent: oklch(0.72 0.19 290);
+  --vp-accent-2: oklch(0.78 0.16 220);
+  --vp-line: rgba(180, 160, 255, 0.18);
+  --vp-card: rgba(20, 14, 40, 0.45);
+  --vp-text-on-gradient: #0a0418;
+  --vp-focus-ring: rgba(180, 120, 255, 0.12);
+  --vp-warn-red: #ff6b8a;
+  --vp-delete-red: #c0394d;
+  --vp-error-fg: #ffb8d9;
+  --vp-error-fg-strong: #ffc8dd;
+  --vp-display: "Fraunces", "Cormorant Garamond", Georgia, serif;
+  --vp-sans: "Inter", -apple-system, "Helvetica Neue", sans-serif;
+  --vp-mono: "JetBrains Mono", "SF Mono", Menlo, monospace;
+}
+
 html.dark {
   --bg: #0f172a;
   --bg-elevated: #1e293b;
