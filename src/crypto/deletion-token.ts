@@ -47,7 +47,7 @@ export async function generateDeletionToken(): Promise<{
  * there's no cryptographic advantage to one over the other here and hashing
  * the string sidesteps a round-trip decode on both ends.
  */
-export async function hashTokenB64url(tokenB64url: string): Promise<string> {
+async function hashTokenB64url(tokenB64url: string): Promise<string> {
   const bytes = new TextEncoder().encode(tokenB64url);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return base64urlEncode(new Uint8Array(digest));

@@ -302,21 +302,6 @@ export async function deleteLink(
   throw new ApiError("SERVER_ERROR", `Delete failed: ${res.status}`);
 }
 
-export async function checkExists(
-  id: string,
-  signal?: AbortSignal,
-): Promise<boolean> {
-  try {
-    const res = await fetch(
-      `${API_BASE}/links/${encodeURIComponent(id)}`,
-      reqInit({ method: "HEAD" }, signal),
-    );
-    return res.status === 200;
-  } catch {
-    return false;
-  }
-}
-
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {

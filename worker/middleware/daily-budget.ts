@@ -19,19 +19,11 @@ const PER_ORIGIN_BUDGET_FRACTION: Readonly<Record<string, number>> = {
 
 const COUNTER_TTL_SECONDS = 172800; // 48 hours — auto-cleanup of old day counters
 
-export interface BudgetReadResult {
-  globalCount: number;
-  originCount: number;
-  origin: string | null;
-  globalLimit: number;
-  originLimit: number;
-}
-
 export function todayKey(): string {
   return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 }
 
-export function secondsUntilUtcMidnight(): number {
+function secondsUntilUtcMidnight(): number {
   const now = new Date();
   const tomorrow = new Date(
     Date.UTC(
