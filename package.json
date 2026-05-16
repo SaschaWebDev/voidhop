@@ -39,6 +39,7 @@
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.0",
     "fallow": "^2.75.0",
+    "happy-dom": "^20.9.0",
     "miniflare": "^3.20240925.0",
     "oxlint": "^0.10.0",
     "rolldown-vite": "^6.0.0-alpha",

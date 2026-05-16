@@ -67,8 +67,14 @@ const PASSWORD_BACKOFF_MS_BY_ATTEMPTS_LEFT: readonly number[] = [
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+//
+// The pure helpers below (validators, refresh/build/parse, backoff gate,
+// constant-time compare) are exported solely so that
+// `tests/unit/worker/links-helpers.test.ts` can exercise them in isolation.
+// They are not part of the public worker surface — Hono only sees the
+// `mountLinksRoutes` entry point.
 
-function isValidId(id: string): boolean {
+export function isValidId(id: string): boolean {
   if (id.length < ID_MIN_LENGTH || id.length > ID_MAX_LENGTH) return false;
   for (let i = 0; i < id.length; i++) {
     const c = id.charCodeAt(i);
@@ -84,7 +90,10 @@ function isValidId(id: string): boolean {
 }
 
 /** Shared base64url-alphabet check (no regex, no allocations). */
-function isBase64UrlString(s: unknown, expectedLength: number): s is string {
+export function isBase64UrlString(
+  s: unknown,
+  expectedLength: number,
+): s is string {
   if (typeof s !== "string") return false;
   if (s.length !== expectedLength) return false;
   for (let i = 0; i < s.length; i++) {
@@ -100,11 +109,11 @@ function isBase64UrlString(s: unknown, expectedLength: number): s is string {
   return true;
 }
 
-function isValidVerifier(s: unknown): s is string {
+export function isValidVerifier(s: unknown): s is string {
   return isBase64UrlString(s, VERIFIER_B64URL_LENGTH);
 }
 
-function isValidDeletionTokenHash(s: unknown): s is string {
+export function isValidDeletionTokenHash(s: unknown): s is string {
   return isBase64UrlString(s, DELETION_TOKEN_HASH_B64URL_LENGTH);
 }
 
@@ -112,7 +121,7 @@ function isValidDeletionTokenHash(s: unknown): s is string {
  * Validate an opt-in uses-left counter. Must be a positive integer within the
  * auditable ceiling.
  */
-function isValidUsesLeft(n: unknown): n is number {
+export function isValidUsesLeft(n: unknown): n is number {
   return (
     typeof n === "number" &&
     Number.isInteger(n) &&
@@ -129,7 +138,7 @@ function isValidUsesLeft(n: unknown): n is number {
  * Cloudflare Workers have no `crypto.timingSafeEqual`; this is the idiomatic
  * hand-rolled replacement.
  */
-function constantTimeEqual(a: string, b: string): boolean {
+export function constantTimeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   let diff = 0;
   for (let i = 0; i < a.length; i++) {
@@ -144,7 +153,7 @@ function constantTimeEqual(a: string, b: string): boolean {
  * `exactOptionalPropertyTypes: true`, which forbids `field: undefined` on
  * optional properties — we must omit the key entirely.
  */
-function refreshRecord(
+export function refreshRecord(
   record: LinkRecordV2,
   opts: {
     attemptsLeft?: number;
@@ -180,7 +189,7 @@ function refreshRecord(
  * Inline blob validation: type, length, charset. No regex, no Zod. SR-INPUT-02.
  * Returns null on success, an error response payload on failure.
  */
-function validateBlob(blob: unknown):
+export function validateBlob(blob: unknown):
   | { ok: true }
   | { ok: false; status: 400; body: { error: string } } {
   if (typeof blob !== "string") {
@@ -232,7 +241,7 @@ async function parseJsonObject(
   return { ok: true, obj: body as Record<string, unknown> };
 }
 
-interface CreateInput {
+export interface CreateInput {
   blob: string;
   ttl: number;
   verifier: string | null;
@@ -244,7 +253,7 @@ interface CreateInput {
  * Validate every field of a /links POST body. Either returns a typed
  * `CreateInput` or the precise error code the handler should respond with.
  */
-function parseCreateInput(
+export function parseCreateInput(
   obj: Record<string, unknown>,
 ):
   | { ok: true; input: CreateInput }
@@ -297,7 +306,10 @@ function parseCreateInput(
  * Build the persisted LinkRecord from validated input. Pure: same inputs
  * always produce the same record. Branches on `verifier` for v1 vs v2 shape.
  */
-function buildLinkRecord(input: CreateInput, createdAt: string): LinkRecord {
+export function buildLinkRecord(
+  input: CreateInput,
+  createdAt: string,
+): LinkRecord {
   const { blob, ttl, verifier, usesLeft, deletionTokenHash } = input;
   return verifier
     ? {
@@ -347,7 +359,7 @@ async function tryIncrementBudgets(
  * If the record is in a server-imposed backoff window, return the BACKOFF
  * response body + Retry-After header. Otherwise null.
  */
-function checkBackoffGate(
+export function checkBackoffGate(
   record: LinkRecordV2,
   now: number,
 ):

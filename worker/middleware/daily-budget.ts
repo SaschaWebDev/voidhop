@@ -23,7 +23,7 @@ export function todayKey(): string {
   return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 }
 
-function secondsUntilUtcMidnight(): number {
+export function secondsUntilUtcMidnight(): number {
   const now = new Date();
   const tomorrow = new Date(
     Date.UTC(
