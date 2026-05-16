@@ -118,15 +118,34 @@ export async function createLink(
   req: CreateLinkRequest,
   signal?: AbortSignal,
 ): Promise<CreateLinkResponse> {
+  return postJson<CreateLinkResponse>(
+    `${API_BASE}/links`,
+    req,
+    signal,
+    "Create failed",
+  );
+}
+
+/**
+ * Shared POST-JSON helper for the create + unlock endpoints. On 2xx parses
+ * the JSON response as `T`; otherwise extracts the error code, attempts,
+ * and Retry-After from the response and throws a typed `ApiError`.
+ */
+async function postJson<T>(
+  url: string,
+  body: unknown,
+  signal: AbortSignal | undefined,
+  errorPrefix: string,
+): Promise<T> {
   let res: Response;
   try {
     res = await fetch(
-      `${API_BASE}/links`,
+      url,
       reqInit(
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(req),
+          body: JSON.stringify(body),
         },
         signal,
       ),
@@ -136,17 +155,17 @@ export async function createLink(
     throw new ApiError("NETWORK_ERROR", "Could not reach VoidHop");
   }
 
-  if (res.status === 201) {
-    return (await res.json()) as CreateLinkResponse;
+  if (res.ok) {
+    return (await res.json()) as T;
   }
 
-  const { code } = await parseErrorBody(res);
+  const { code, attemptsLeft, retryAfterMs } = await parseErrorBody(res);
   const type = mapErrorCode(code);
   const retryAfter = retryAfterFromHeader(res);
   throw new ApiError(
     type,
-    `Create failed: ${type}`,
-    apiErrorOpts({ retryAfter }),
+    `${errorPrefix}: ${type}`,
+    apiErrorOpts({ retryAfter, attemptsLeft, retryAfterMs }),
   );
 }
 
@@ -237,35 +256,11 @@ export async function unlockLink(
   req: UnlockRequest,
   signal?: AbortSignal,
 ): Promise<UnlockResponse> {
-  let res: Response;
-  try {
-    res = await fetch(
-      `${API_BASE}/links/${encodeURIComponent(id)}/unlock`,
-      reqInit(
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(req),
-        },
-        signal,
-      ),
-    );
-  } catch (e) {
-    if (e instanceof DOMException && e.name === "AbortError") throw e;
-    throw new ApiError("NETWORK_ERROR", "Could not reach VoidHop");
-  }
-
-  if (res.status === 200) {
-    return (await res.json()) as UnlockResponse;
-  }
-
-  const { code, attemptsLeft, retryAfterMs } = await parseErrorBody(res);
-  const type = mapErrorCode(code);
-  const retryAfter = retryAfterFromHeader(res);
-  throw new ApiError(
-    type,
-    `Unlock failed: ${type}`,
-    apiErrorOpts({ retryAfter, attemptsLeft, retryAfterMs }),
+  return postJson<UnlockResponse>(
+    `${API_BASE}/links/${encodeURIComponent(id)}/unlock`,
+    req,
+    signal,
+    "Unlock failed",
   );
 }
 
