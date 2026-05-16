@@ -409,6 +409,10 @@ function VoidResult({
   onReset: () => void;
 }) {
   const [copied, setCopied] = useState(false);
+  const [hasCopiedOnce, setHasCopiedOnce] = useState(false);
+  const [deleteCopied, setDeleteCopied] = useState(false);
+  const [warned, setWarned] = useState(false);
+  const [shaking, setShaking] = useState(false);
   const qrRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -428,7 +432,7 @@ function VoidResult({
         Done. <em>Here's your link.</em>
       </h2>
 
-      <div className="vp-result-url-row">
+      <div className={`vp-result-url-row${shaking ? " warn" : ""}`}>
         <span className="vp-result-url">{shortUrl}</span>
         <button
           type="button"
@@ -436,6 +440,7 @@ function VoidResult({
           onClick={async () => {
             if (await copyToClipboard(shortUrl)) {
               setCopied(true);
+              setHasCopiedOnce(true);
               window.setTimeout(() => setCopied(false), 1400);
             }
           }}
@@ -469,16 +474,42 @@ function VoidResult({
 
       {deleteUrl && (
         <div className="vp-revoke">
-          <div className="vp-revoke-label">
-            DELETE URL · save this for deletion
+          <div className="vp-revoke-text">
+            <div className="vp-revoke-label">
+              DELETE URL · save this for deletion
+            </div>
+            <code>{deleteUrl}</code>
           </div>
-          <code>{deleteUrl}</code>
+          <button
+            type="button"
+            className="vp-revoke-copy"
+            onClick={async () => {
+              if (await copyToClipboard(deleteUrl)) {
+                setDeleteCopied(true);
+                window.setTimeout(() => setDeleteCopied(false), 1400);
+              }
+            }}
+          >
+            {deleteCopied ? "Copied ✓" : "Copy"}
+          </button>
         </div>
       )}
 
       <div className="vp-result-foot">
         <div className="vp-qr" ref={qrRef} aria-label="QR code" />
-        <button type="button" className="vp-reset" onClick={onReset}>
+        <button
+          type="button"
+          className="vp-reset"
+          onClick={() => {
+            if (!hasCopiedOnce && !warned) {
+              setWarned(true);
+              setShaking(true);
+              window.setTimeout(() => setShaking(false), 500);
+              return;
+            }
+            onReset();
+          }}
+        >
           Shorten another link
         </button>
       </div>
@@ -1226,6 +1257,18 @@ const css = `
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  transition: border-color 0.2s;
+}
+@keyframes vpShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+.vp-result-url-row.warn {
+  border-color: #ff6b8a;
+  animation: vpShake 0.5s ease;
 }
 .vp-result-url {
   font-family: ${vp.mono};
@@ -1287,6 +1330,13 @@ const css = `
   padding: 10px 14px;
   margin-bottom: 22px;
   line-height: 1.6;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.vp-revoke-text {
+  flex: 1;
+  min-width: 0;
 }
 .vp-revoke-label {
   color: ${vp.inkFaint};
@@ -1297,6 +1347,22 @@ const css = `
 }
 .vp-revoke code {
   word-break: break-all;
+}
+.vp-revoke-copy {
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.05);
+  color: ${vp.ink};
+  border: 1px solid ${vp.line};
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-family: ${vp.sans};
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.vp-revoke-copy:hover {
+  border-color: ${vp.accent};
+  color: ${vp.accent2};
 }
 .vp-result-foot {
   display: flex;
