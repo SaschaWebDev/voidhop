@@ -64,6 +64,16 @@ export interface UseCreateLinkResult {
   reset: () => void;
 }
 
+/** Local-side encrypt result, neutral over v1/v2 + opt-in deletion token. */
+interface EncryptedPayload {
+  blob: string;
+  keyB64url: string;
+  saltB64url: string | null;
+  verifierB64url: string | null;
+  deletionTokenB64url: string | null;
+  deletionTokenHashB64url: string | null;
+}
+
 export function useCreateLink(): UseCreateLinkResult {
   const [state, setState] = useState<CreateState>("idle");
   const [result, setResult] = useState<ShortLinkResult | null>(null);
@@ -79,11 +89,7 @@ export function useCreateLink(): UseCreateLinkResult {
   }, []);
 
   const mutate = useCallback(
-    async (
-      url: string,
-      ttlSeconds: number,
-      options?: CreateLinkOptions,
-    ) => {
+    async (url: string, ttlSeconds: number, options?: CreateLinkOptions) => {
       abortRef.current?.abort();
       const ac = new AbortController();
       abortRef.current = ac;
@@ -95,30 +101,11 @@ export function useCreateLink(): UseCreateLinkResult {
       const usesLeft = options?.usesLeft;
       const includeDeletionToken = options?.includeDeletionToken === true;
 
+      // Local crypto step.
       setState("encrypting");
-      let blob: string;
-      let keyB64url: string;
-      let saltB64url: string | null = null;
-      let verifierB64url: string | null = null;
-      let deletionTokenB64url: string | null = null;
-      let deletionTokenHashB64url: string | null = null;
+      let payload: EncryptedPayload;
       try {
-        if (password && password.length > 0) {
-          const enc = await encryptUrlWithPassword(url, password);
-          blob = enc.blob;
-          keyB64url = enc.keyB64url;
-          saltB64url = enc.saltB64url;
-          verifierB64url = enc.verifierB64url;
-        } else {
-          const enc = await encryptUrl(url);
-          blob = enc.blob;
-          keyB64url = enc.keyB64url;
-        }
-        if (includeDeletionToken) {
-          const tok = await generateDeletionToken();
-          deletionTokenB64url = tok.tokenB64url;
-          deletionTokenHashB64url = tok.hashB64url;
-        }
+        payload = await encryptForUpload(url, password, includeDeletionToken);
       } catch (e) {
         if (e instanceof CryptoError) {
           setError(e);
@@ -130,22 +117,11 @@ export function useCreateLink(): UseCreateLinkResult {
 
       if (ac.signal.aborted) return;
 
+      // Network step.
       setState("uploading");
       let id: string;
       try {
-        const res = await createLink(
-          {
-            blob,
-            ttl: ttlSeconds,
-            ...(verifierB64url ? { verifier: verifierB64url } : {}),
-            ...(usesLeft !== undefined ? { usesLeft } : {}),
-            ...(deletionTokenHashB64url
-              ? { deletionTokenHash: deletionTokenHashB64url }
-              : {}),
-          },
-          ac.signal,
-        );
-        id = res.id;
+        id = await uploadEncrypted(payload, ttlSeconds, usesLeft, ac.signal);
       } catch (e) {
         if (e instanceof DOMException && e.name === "AbortError") return;
         if (e instanceof ApiError) {
@@ -156,26 +132,109 @@ export function useCreateLink(): UseCreateLinkResult {
         throw e;
       }
 
-      const fragment = assembleFragment(keyB64url, saltB64url);
-      const shortUrl = `${window.location.origin}/${id}#${fragment}`;
-      const deleteUrl =
-        deletionTokenB64url !== null
-          ? `${window.location.origin}/delete/${id}#${deletionTokenB64url}`
-          : null;
-      const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();
-
-      setResult({
-        shortUrl,
-        ttlSeconds,
-        expiresAt,
-        passwordProtected: saltB64url !== null,
-        ...(usesLeft !== undefined ? { usesLeft } : {}),
-        ...(deleteUrl !== null ? { deleteUrl } : {}),
-      });
+      setResult(buildShortLinkResult(payload, id, ttlSeconds, usesLeft));
       setState("success");
     },
     [],
   );
 
   return { state, result, error, mutate, reset };
+}
+
+/**
+ * Encrypt the URL (v1 or v2 depending on `password`) and optionally mint a
+ * creator deletion token. Returns a neutral payload object.
+ */
+async function encryptForUpload(
+  url: string,
+  password: string | undefined,
+  includeDeletionToken: boolean,
+): Promise<EncryptedPayload> {
+  let blob: string;
+  let keyB64url: string;
+  let saltB64url: string | null = null;
+  let verifierB64url: string | null = null;
+
+  if (password && password.length > 0) {
+    const enc = await encryptUrlWithPassword(url, password);
+    blob = enc.blob;
+    keyB64url = enc.keyB64url;
+    saltB64url = enc.saltB64url;
+    verifierB64url = enc.verifierB64url;
+  } else {
+    const enc = await encryptUrl(url);
+    blob = enc.blob;
+    keyB64url = enc.keyB64url;
+  }
+
+  let deletionTokenB64url: string | null = null;
+  let deletionTokenHashB64url: string | null = null;
+  if (includeDeletionToken) {
+    const tok = await generateDeletionToken();
+    deletionTokenB64url = tok.tokenB64url;
+    deletionTokenHashB64url = tok.hashB64url;
+  }
+
+  return {
+    blob,
+    keyB64url,
+    saltB64url,
+    verifierB64url,
+    deletionTokenB64url,
+    deletionTokenHashB64url,
+  };
+}
+
+/**
+ * POST the encrypted payload to /links and return the assigned id. Passes
+ * the abort signal so cancellation propagates.
+ */
+async function uploadEncrypted(
+  payload: EncryptedPayload,
+  ttlSeconds: number,
+  usesLeft: number | undefined,
+  signal: AbortSignal,
+): Promise<string> {
+  const res = await createLink(
+    {
+      blob: payload.blob,
+      ttl: ttlSeconds,
+      ...(payload.verifierB64url ? { verifier: payload.verifierB64url } : {}),
+      ...(usesLeft !== undefined ? { usesLeft } : {}),
+      ...(payload.deletionTokenHashB64url
+        ? { deletionTokenHash: payload.deletionTokenHashB64url }
+        : {}),
+    },
+    signal,
+  );
+  return res.id;
+}
+
+/**
+ * Pure assembly of the user-facing result object. The short URL embeds the
+ * v1 or v2 fragment via assembleFragment; the delete URL carries the raw
+ * creator token in its own fragment so the server never sees it.
+ */
+function buildShortLinkResult(
+  payload: EncryptedPayload,
+  id: string,
+  ttlSeconds: number,
+  usesLeft: number | undefined,
+): ShortLinkResult {
+  const fragment = assembleFragment(payload.keyB64url, payload.saltB64url);
+  const shortUrl = `${window.location.origin}/${id}#${fragment}`;
+  const deleteUrl =
+    payload.deletionTokenB64url !== null
+      ? `${window.location.origin}/delete/${id}#${payload.deletionTokenB64url}`
+      : null;
+  const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();
+
+  return {
+    shortUrl,
+    ttlSeconds,
+    expiresAt,
+    passwordProtected: payload.saltB64url !== null,
+    ...(usesLeft !== undefined ? { usesLeft } : {}),
+    ...(deleteUrl !== null ? { deleteUrl } : {}),
+  };
 }

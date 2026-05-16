@@ -14,7 +14,7 @@
  * trailing-slash-less request `POST /api/v1/links`.
  */
 
-import type { Hono } from "hono";
+import type { Context, Hono } from "hono";
 import { z } from "zod";
 import type { HonoEnv, LinkRecord, LinkRecordV2 } from "../types";
 import { IdCollisionError } from "../types";
@@ -209,6 +209,267 @@ const ttlSchema = z
     message: "INVALID_TTL",
   });
 
+/**
+ * Read JSON body and assert it's a plain object. Returns the parsed object
+ * or a discriminated error so callers can shape the response without
+ * repeating the try/catch and `typeof === "object"` dance.
+ */
+async function parseJsonObject(
+  c: { req: { json: () => Promise<unknown> } },
+): Promise<
+  | { ok: true; obj: Record<string, unknown> }
+  | { ok: false }
+> {
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return { ok: false };
+  }
+  if (typeof body !== "object" || body === null) {
+    return { ok: false };
+  }
+  return { ok: true, obj: body as Record<string, unknown> };
+}
+
+interface CreateInput {
+  blob: string;
+  ttl: number;
+  verifier: string | null;
+  usesLeft: number | undefined;
+  deletionTokenHash: string | undefined;
+}
+
+/**
+ * Validate every field of a /links POST body. Either returns a typed
+ * `CreateInput` or the precise error code the handler should respond with.
+ */
+function parseCreateInput(
+  obj: Record<string, unknown>,
+):
+  | { ok: true; input: CreateInput }
+  | { ok: false; status: 400; body: { error: string } } {
+  const blobCheck = validateBlob(obj.blob);
+  if (!blobCheck.ok) return blobCheck;
+  const blob = obj.blob as string;
+
+  const ttlParse = ttlSchema.safeParse(obj.ttl);
+  if (!ttlParse.success) {
+    return { ok: false, status: 400, body: { error: "INVALID_TTL" } };
+  }
+  const ttl = ttlParse.data;
+
+  let verifier: string | null = null;
+  if (obj.verifier !== undefined) {
+    if (!isValidVerifier(obj.verifier)) {
+      return { ok: false, status: 400, body: { error: "INVALID_VERIFIER" } };
+    }
+    verifier = obj.verifier;
+  }
+
+  let usesLeft: number | undefined;
+  if (obj.usesLeft !== undefined) {
+    if (!isValidUsesLeft(obj.usesLeft)) {
+      return { ok: false, status: 400, body: { error: "INVALID_USES_LEFT" } };
+    }
+    usesLeft = obj.usesLeft;
+  }
+
+  let deletionTokenHash: string | undefined;
+  if (obj.deletionTokenHash !== undefined) {
+    if (!isValidDeletionTokenHash(obj.deletionTokenHash)) {
+      return {
+        ok: false,
+        status: 400,
+        body: { error: "INVALID_DELETION_TOKEN_HASH" },
+      };
+    }
+    deletionTokenHash = obj.deletionTokenHash;
+  }
+
+  return {
+    ok: true,
+    input: { blob, ttl, verifier, usesLeft, deletionTokenHash },
+  };
+}
+
+/**
+ * Build the persisted LinkRecord from validated input. Pure: same inputs
+ * always produce the same record. Branches on `verifier` for v1 vs v2 shape.
+ */
+function buildLinkRecord(input: CreateInput, createdAt: string): LinkRecord {
+  const { blob, ttl, verifier, usesLeft, deletionTokenHash } = input;
+  return verifier
+    ? {
+        blob,
+        ttl,
+        createdAt,
+        version: 2,
+        verifier,
+        attemptsLeft: MAX_PASSWORD_ATTEMPTS,
+        ...(usesLeft !== undefined ? { usesLeft } : {}),
+        ...(deletionTokenHash ? { deletionTokenHash } : {}),
+      }
+    : {
+        blob,
+        ttl,
+        createdAt,
+        version: 1,
+        ...(usesLeft !== undefined ? { usesLeft } : {}),
+        ...(deletionTokenHash ? { deletionTokenHash } : {}),
+      };
+}
+
+/**
+ * Best-effort increment of the global + per-origin daily-write counters.
+ * Swallows errors — counter drift is acceptable; the link is already saved.
+ */
+async function tryIncrementBudgets(
+  env: HonoEnv["Bindings"],
+  globalCount: number,
+  origin: string | null,
+  originCount: number | null,
+): Promise<void> {
+  try {
+    await incrementBudgetCounters(
+      env,
+      todayKey(),
+      globalCount,
+      origin,
+      originCount,
+    );
+  } catch {
+    // Counter increment failure is non-fatal — the link is already saved.
+  }
+}
+
+/**
+ * If the record is in a server-imposed backoff window, return the BACKOFF
+ * response body + Retry-After header. Otherwise null.
+ */
+function checkBackoffGate(
+  record: LinkRecordV2,
+  now: number,
+):
+  | null
+  | {
+      body: { error: string; attemptsLeft: number; retryAfterMs: number };
+      headers: Record<string, string>;
+    } {
+  if (record.backoffUntil === undefined || record.backoffUntil <= now) {
+    return null;
+  }
+  const retryAfterSec = Math.ceil((record.backoffUntil - now) / 1000);
+  return {
+    body: {
+      error: "BACKOFF",
+      attemptsLeft: record.attemptsLeft,
+      retryAfterMs: record.backoffUntil - now,
+    },
+    headers: { "Retry-After": String(retryAfterSec) },
+  };
+}
+
+/**
+ * Match path: reset the attempts counter, decrement opt-in uses, destroy
+ * the record if that brings uses to zero. Returns the blob on success or a
+ * NOT_FOUND if a critical counter write fails (so we don't silently hand
+ * out extra uses).
+ */
+async function handleMatch(
+  c: Context<HonoEnv>,
+  store: CloudflareKVLinkStore,
+  id: string,
+  record: LinkRecordV2,
+): Promise<Response> {
+  const needsAttemptsReset = record.attemptsLeft < MAX_PASSWORD_ATTEMPTS;
+  const needsBackoffClear = record.backoffUntil !== undefined;
+  const hasUsesCounter = record.usesLeft !== undefined;
+
+  if (hasUsesCounter) {
+    const remaining = (record.usesLeft as number) - 1;
+    try {
+      if (remaining <= 0) {
+        await store.delete(id);
+      } else {
+        await store.update(
+          id,
+          refreshRecord(record, {
+            attemptsLeft: MAX_PASSWORD_ATTEMPTS,
+            usesLeft: remaining,
+            clearBackoff: true,
+          }),
+          record.ttl,
+        );
+      }
+    } catch {
+      // Counter write failed — refuse the unlock rather than silently
+      // hand out extra uses.
+      return c.json({ error: "NOT_FOUND" }, 404);
+    }
+  } else if (needsAttemptsReset || needsBackoffClear) {
+    try {
+      await store.update(
+        id,
+        refreshRecord(record, {
+          attemptsLeft: MAX_PASSWORD_ATTEMPTS,
+          clearBackoff: true,
+        }),
+        record.ttl,
+      );
+    } catch {
+      // Reset failure is non-fatal — next success will retry.
+    }
+  }
+  return c.json({ blob: record.blob }, 200);
+}
+
+/**
+ * Miss path: decrement attempts (or destroy on the last miss), set a
+ * backoff window per the configured schedule, persist best-effort, and
+ * return the typed 401/410 response body.
+ */
+async function handleMiss(
+  c: Context<HonoEnv>,
+  store: CloudflareKVLinkStore,
+  id: string,
+  record: LinkRecordV2,
+  now: number,
+): Promise<Response> {
+  const remaining = record.attemptsLeft - 1;
+  if (remaining <= 0) {
+    try {
+      await store.delete(id);
+    } catch {
+      // Counter is already at 0; the next miss will retry the deletion.
+    }
+    return c.json({ error: "LINK_DESTROYED" }, 410);
+  }
+
+  const backoffMs = PASSWORD_BACKOFF_MS_BY_ATTEMPTS_LEFT[remaining] ?? 0;
+  const backoffUntil = backoffMs > 0 ? now + backoffMs : undefined;
+
+  const decremented = refreshRecord(record, {
+    attemptsLeft: remaining,
+    ...(backoffUntil !== undefined
+      ? { backoffUntil }
+      : { clearBackoff: true }),
+  });
+  try {
+    await store.update(id, decremented, record.ttl);
+  } catch {
+    // Best-effort persist. One free retry on failure is acceptable.
+  }
+  return c.json(
+    {
+      error: "WRONG_PASSWORD",
+      attemptsLeft: remaining,
+      ...(backoffMs > 0 ? { retryAfterMs: backoffMs } : {}),
+    },
+    401,
+  );
+}
+
 // ─── Mount routes ─────────────────────────────────────────────────────────────
 
 export function mountLinksRoutes(app: Hono<HonoEnv>): void {
@@ -222,65 +483,13 @@ export function mountLinksRoutes(app: Hono<HonoEnv>): void {
     }),
     dailyBudgetMiddleware(),
     async (c) => {
-      let body: unknown;
-      try {
-        body = await c.req.json();
-      } catch {
-        return c.json({ error: "INVALID_BLOB" }, 400);
-      }
+      const parsed = await parseJsonObject(c);
+      if (!parsed.ok) return c.json({ error: "INVALID_BLOB" }, 400);
 
-      if (typeof body !== "object" || body === null) {
-        return c.json({ error: "INVALID_BLOB" }, 400);
-      }
-      const obj = body as Record<string, unknown>;
+      const validated = parseCreateInput(parsed.obj);
+      if (!validated.ok) return c.json(validated.body, validated.status);
+      const { input } = validated;
 
-      // 1. Inline blob fast path — no regex, no Zod
-      const blobCheck = validateBlob(obj.blob);
-      if (!blobCheck.ok) {
-        return c.json(blobCheck.body, blobCheck.status);
-      }
-      const blob = obj.blob as string;
-
-      // 2. Zod for the small ttl field. The allowed-values list enforces
-      //    the universal 7-day max — no separate ceiling check needed.
-      const ttlParse = ttlSchema.safeParse(obj.ttl);
-      if (!ttlParse.success) {
-        return c.json({ error: "INVALID_TTL" }, 400);
-      }
-      const ttl = ttlParse.data;
-
-      // 2b. Optional verifier for password-protected links (v2). When
-      //     present, the record is stored as V2 with attemptsLeft=5.
-      let verifier: string | null = null;
-      if (obj.verifier !== undefined) {
-        if (!isValidVerifier(obj.verifier)) {
-          return c.json({ error: "INVALID_VERIFIER" }, 400);
-        }
-        verifier = obj.verifier;
-      }
-
-      // 2c. Optional usesLeft for multi-use counter. Opt-in; adds per-read
-      //     KV writes (so a privacy-aware user may prefer to leave it off).
-      let usesLeft: number | undefined;
-      if (obj.usesLeft !== undefined) {
-        if (!isValidUsesLeft(obj.usesLeft)) {
-          return c.json({ error: "INVALID_USES_LEFT" }, 400);
-        }
-        usesLeft = obj.usesLeft;
-      }
-
-      // 2d. Optional deletionTokenHash — SHA-256(random 256-bit token) that
-      //     the creator keeps in the delete URL. Server never sees the raw
-      //     token; stores only the hash for constant-time comparison.
-      let deletionTokenHash: string | undefined;
-      if (obj.deletionTokenHash !== undefined) {
-        if (!isValidDeletionTokenHash(obj.deletionTokenHash)) {
-          return c.json({ error: "INVALID_DELETION_TOKEN_HASH" }, 400);
-        }
-        deletionTokenHash = obj.deletionTokenHash;
-      }
-
-      // 3. Allocate ID and persist.
       const store = new CloudflareKVLinkStore(c.env.VOIDHOP_KV);
       let id: string;
       try {
@@ -292,53 +501,22 @@ export function mountLinksRoutes(app: Hono<HonoEnv>): void {
         throw e;
       }
 
-      const createdAt = new Date().toISOString();
-      const record: LinkRecord = verifier
-        ? {
-            blob,
-            ttl,
-            createdAt,
-            version: 2,
-            verifier,
-            attemptsLeft: MAX_PASSWORD_ATTEMPTS,
-            ...(usesLeft !== undefined ? { usesLeft } : {}),
-            ...(deletionTokenHash ? { deletionTokenHash } : {}),
-          }
-        : {
-            blob,
-            ttl,
-            createdAt,
-            version: 1,
-            ...(usesLeft !== undefined ? { usesLeft } : {}),
-            ...(deletionTokenHash ? { deletionTokenHash } : {}),
-          };
-
+      const record = buildLinkRecord(input, new Date().toISOString());
       try {
-        await store.put(id, record, ttl);
+        await store.put(id, record, input.ttl);
       } catch (e) {
-        if (e instanceof IdCollisionError) {
-          // Extremely unlikely race after the existence check.
-          return c.json({ error: "STORAGE_ERROR" }, 503);
-        }
-        return c.json({ error: "STORAGE_ERROR" }, 500);
+        return c.json(
+          { error: "STORAGE_ERROR" },
+          e instanceof IdCollisionError ? 503 : 500,
+        );
       }
 
-      // 4. Increment budget counters (best-effort).
-      try {
-        const date = todayKey();
-        const globalCount = c.get("budgetGlobalCount") ?? 0;
-        const origin = c.get("budgetOrigin") ?? null;
-        const originCount = c.get("budgetOriginCount") ?? null;
-        await incrementBudgetCounters(
-          c.env,
-          date,
-          globalCount,
-          origin,
-          originCount,
-        );
-      } catch {
-        // Counter increment failure is non-fatal — the link is already saved.
-      }
+      await tryIncrementBudgets(
+        c.env,
+        c.get("budgetGlobalCount") ?? 0,
+        c.get("budgetOrigin") ?? null,
+        c.get("budgetOriginCount") ?? null,
+      );
 
       return c.json({ id }, 201);
     },
@@ -437,139 +615,33 @@ export function mountLinksRoutes(app: Hono<HonoEnv>): void {
     }),
     async (c) => {
       const id = c.req.param("id");
-      if (!isValidId(id)) {
-        return c.json({ error: "NOT_FOUND" }, 404);
-      }
+      if (!isValidId(id)) return c.json({ error: "NOT_FOUND" }, 404);
 
-      let body: unknown;
-      try {
-        body = await c.req.json();
-      } catch {
-        return c.json({ error: "INVALID_VERIFIER" }, 400);
-      }
-      if (typeof body !== "object" || body === null) {
-        return c.json({ error: "INVALID_VERIFIER" }, 400);
-      }
-      const submitted = (body as Record<string, unknown>).verifier;
+      const parsed = await parseJsonObject(c);
+      if (!parsed.ok) return c.json({ error: "INVALID_VERIFIER" }, 400);
+      const submitted = parsed.obj.verifier;
       if (!isValidVerifier(submitted)) {
         return c.json({ error: "INVALID_VERIFIER" }, 400);
       }
 
       const store = new CloudflareKVLinkStore(c.env.VOIDHOP_KV);
       const record = await store.get(id);
-      if (record === null) {
-        return c.json({ error: "NOT_FOUND" }, 404);
-      }
-      // Unlocking only makes sense for v2. A v1 record at this endpoint is a
-      // client bug — respond 404 to collapse with the "no such protected
-      // link" case and keep the attack surface uniform.
-      if (record.version !== 2) {
+      // Unlock only makes sense for v2. v1 at this endpoint is a client bug —
+      // respond 404 so the attack surface stays uniform with "no such link".
+      if (record === null || record.version !== 2) {
         return c.json({ error: "NOT_FOUND" }, 404);
       }
 
-      // Exponential backoff gate. If a prior miss set `backoffUntil` in the
-      // future, refuse to evaluate the verifier and return 429. The wait
-      // prevents a fast-typing attacker from burning through all attempts
-      // in a second while a legitimate typo costs 1–120s.
       const now = Date.now();
-      if (record.backoffUntil !== undefined && record.backoffUntil > now) {
-        const retryAfterSec = Math.ceil((record.backoffUntil - now) / 1000);
-        return c.json(
-          {
-            error: "BACKOFF",
-            attemptsLeft: record.attemptsLeft,
-            retryAfterMs: record.backoffUntil - now,
-          },
-          429,
-          { "Retry-After": String(retryAfterSec) },
-        );
+      const backoff = checkBackoffGate(record, now);
+      if (backoff !== null) {
+        return c.json(backoff.body, 429, backoff.headers);
       }
 
       if (constantTimeEqual(submitted, record.verifier)) {
-        // Match — return the blob. Before handing it out, apply side
-        // effects: reset the attempts counter, decrement the optional
-        // uses counter, destroy the record if that brings uses to zero.
-        const needsAttemptsReset =
-          record.attemptsLeft < MAX_PASSWORD_ATTEMPTS;
-        const needsBackoffClear = record.backoffUntil !== undefined;
-        const hasUsesCounter = record.usesLeft !== undefined;
-
-        if (hasUsesCounter) {
-          const remaining = (record.usesLeft as number) - 1;
-          try {
-            if (remaining <= 0) {
-              await store.delete(id);
-            } else {
-              await store.update(
-                id,
-                refreshRecord(record, {
-                  attemptsLeft: MAX_PASSWORD_ATTEMPTS,
-                  usesLeft: remaining,
-                  clearBackoff: true,
-                }),
-                record.ttl,
-              );
-            }
-          } catch {
-            // Counter write failed — refuse the unlock rather than silently
-            // handing out extra uses. The attempts counter stays as-is.
-            return c.json({ error: "NOT_FOUND" }, 404);
-          }
-        } else if (needsAttemptsReset || needsBackoffClear) {
-          try {
-            await store.update(
-              id,
-              refreshRecord(record, {
-                attemptsLeft: MAX_PASSWORD_ATTEMPTS,
-                clearBackoff: true,
-              }),
-              record.ttl,
-            );
-          } catch {
-            // Reset failure is non-fatal — next success will retry.
-          }
-        }
-        return c.json({ blob: record.blob }, 200);
+        return handleMatch(c, store, id, record);
       }
-
-      // Miss — either decrement and persist, or destroy on final miss.
-      const remaining = record.attemptsLeft - 1;
-      if (remaining <= 0) {
-        try {
-          await store.delete(id);
-        } catch {
-          // If delete fails, the next miss will retry the deletion path. Not
-          // a privacy issue since the counter is already at 0.
-        }
-        return c.json({ error: "LINK_DESTROYED" }, 410);
-      }
-
-      // Set a backoff window before the next attempt is permitted. Index by
-      // remaining attempts: fewer attempts left → longer mandatory wait.
-      const backoffMs =
-        PASSWORD_BACKOFF_MS_BY_ATTEMPTS_LEFT[remaining] ?? 0;
-      const backoffUntil = backoffMs > 0 ? now + backoffMs : undefined;
-
-      const decremented = refreshRecord(record, {
-        attemptsLeft: remaining,
-        ...(backoffUntil !== undefined
-          ? { backoffUntil }
-          : { clearBackoff: true }),
-      });
-      try {
-        await store.update(id, decremented, record.ttl);
-      } catch {
-        // Best-effort persist. If this fails the attacker gets one free
-        // retry — acceptable vs. the complexity of strong durability here.
-      }
-      return c.json(
-        {
-          error: "WRONG_PASSWORD",
-          attemptsLeft: remaining,
-          ...(backoffMs > 0 ? { retryAfterMs: backoffMs } : {}),
-        },
-        401,
-      );
+      return handleMiss(c, store, id, record, now);
     },
   );
 
@@ -588,20 +660,13 @@ export function mountLinksRoutes(app: Hono<HonoEnv>): void {
     }),
     async (c) => {
       const id = c.req.param("id");
-      if (!isValidId(id)) {
-        return c.json({ error: "NOT_FOUND" }, 404);
-      }
+      if (!isValidId(id)) return c.json({ error: "NOT_FOUND" }, 404);
 
-      let body: unknown;
-      try {
-        body = await c.req.json();
-      } catch {
+      const parsed = await parseJsonObject(c);
+      if (!parsed.ok) {
         return c.json({ error: "INVALID_DELETION_TOKEN" }, 400);
       }
-      if (typeof body !== "object" || body === null) {
-        return c.json({ error: "INVALID_DELETION_TOKEN" }, 400);
-      }
-      const submittedToken = (body as Record<string, unknown>).token;
+      const submittedToken = parsed.obj.token;
       if (!isBase64UrlString(submittedToken, DELETION_TOKEN_B64URL_LENGTH)) {
         return c.json({ error: "INVALID_DELETION_TOKEN" }, 400);
       }

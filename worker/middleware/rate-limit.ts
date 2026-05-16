@@ -84,39 +84,60 @@ export function ipBucket(ip: string): string {
  */
 export function expandIpv6(ip: string): string[] | null {
   if (!ip.includes(":")) return null;
-
-  // Strip an optional zone identifier (`%eth0`).
-  const zoneIdx = ip.indexOf("%");
-  const cleaned = zoneIdx >= 0 ? ip.slice(0, zoneIdx) : ip;
-
-  const doubleColon = cleaned.indexOf("::");
-  let head: string[];
-  let tail: string[];
-
-  if (doubleColon < 0) {
-    head = cleaned.split(":");
-    tail = [];
-  } else {
-    const headStr = cleaned.slice(0, doubleColon);
-    const tailStr = cleaned.slice(doubleColon + 2);
-    head = headStr.length > 0 ? headStr.split(":") : [];
-    tail = tailStr.length > 0 ? tailStr.split(":") : [];
-  }
-
-  const fillCount = 8 - head.length - tail.length;
+  const cleaned = stripZoneIdentifier(ip);
+  const split = splitOnDoubleColon(cleaned);
+  const fillCount = 8 - split.head.length - split.tail.length;
   if (fillCount < 0) return null;
 
-  const result: string[] = [];
-  for (const h of head) {
-    if (!isValidHextet(h)) return null;
-    result.push(h.toLowerCase().padStart(4, "0"));
-  }
-  for (let i = 0; i < fillCount; i++) result.push("0000");
-  for (const t of tail) {
-    if (!isValidHextet(t)) return null;
-    result.push(t.toLowerCase().padStart(4, "0"));
-  }
+  const normalizedHead = normalizeHextets(split.head);
+  const normalizedTail = normalizeHextets(split.tail);
+  if (normalizedHead === null || normalizedTail === null) return null;
+
+  const result = [
+    ...normalizedHead,
+    ...Array<string>(fillCount).fill("0000"),
+    ...normalizedTail,
+  ];
   return result.length === 8 ? result : null;
+}
+
+/** Drop the optional `%eth0`-style zone identifier from an IPv6 address. */
+function stripZoneIdentifier(ip: string): string {
+  const zoneIdx = ip.indexOf("%");
+  return zoneIdx >= 0 ? ip.slice(0, zoneIdx) : ip;
+}
+
+/**
+ * Split on the `::` compressor (if any). Returns the hextet groups before
+ * and after; either may be empty.
+ */
+function splitOnDoubleColon(cleaned: string): {
+  head: string[];
+  tail: string[];
+} {
+  const doubleColon = cleaned.indexOf("::");
+  if (doubleColon < 0) {
+    return { head: cleaned.split(":"), tail: [] };
+  }
+  const headStr = cleaned.slice(0, doubleColon);
+  const tailStr = cleaned.slice(doubleColon + 2);
+  return {
+    head: headStr.length > 0 ? headStr.split(":") : [],
+    tail: tailStr.length > 0 ? tailStr.split(":") : [],
+  };
+}
+
+/**
+ * Validate each hextet and pad it to 4 lowercase hex digits. Returns null
+ * if any hextet is malformed.
+ */
+function normalizeHextets(hextets: string[]): string[] | null {
+  const out: string[] = [];
+  for (const h of hextets) {
+    if (!isValidHextet(h)) return null;
+    out.push(h.toLowerCase().padStart(4, "0"));
+  }
+  return out;
 }
 
 function isValidHextet(s: string): boolean {

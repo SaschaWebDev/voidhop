@@ -37,6 +37,7 @@ import {
   deriveKPwd,
   deriveVerifier,
 } from "@/crypto";
+import { scrubBytes } from "@/crypto/scrub";
 import { getBlob, unlockLink } from "@/api/client";
 import { ApiError } from "@/api/types";
 import { isInAppBrowser } from "@/utils/ua-detection";
@@ -88,6 +89,15 @@ export interface UseRedirectResult {
   submitPassword: ((password: string) => void) | null;
 }
 
+interface UnlockSetters {
+  setState: (s: RedirectState) => void;
+  setError: (e: RedirectError) => void;
+  setDestinationHref: (h: string) => void;
+  setAttemptsLeft: (n: number) => void;
+  setPasswordError: (s: string | null) => void;
+  setBackoffUntil: (ms: number | null) => void;
+}
+
 export function useRedirect(id: string): UseRedirectResult {
   const [state, setState] = useState<RedirectState>("loading");
   const [error, setError] = useState<RedirectError | null>(null);
@@ -137,18 +147,14 @@ export function useRedirect(id: string): UseRedirectResult {
       // UI should prevent clicks while `backoffUntil > now`, but guard here
       // too so a racing call can't slip past.
       if (backoffUntil !== null && backoffUntil > Date.now()) return;
-      void runUnlock(
-        id,
-        password,
-        keyB64url,
-        saltB64url,
+      void runUnlock(id, password, keyB64url, saltB64url, {
         setState,
         setError,
         setDestinationHref,
         setAttemptsLeft,
         setPasswordError,
         setBackoffUntil,
-      );
+      });
     },
     [id, backoffUntil],
   );
@@ -178,19 +184,9 @@ async function runInitial(
   keyB64urlRef: React.MutableRefObject<string | null>,
   saltB64urlRef: React.MutableRefObject<string | null>,
 ): Promise<void> {
-  // 1. Read & structurally validate the hash. `parseFragment` handles the
-  //    secondary-`#` defense and the exact-length checks; we just surface
-  //    its error type to the state machine.
   const parsed = parseFragment(window.location.hash);
   if (!parsed.ok) {
-    if (parsed.error === "MISSING_KEY") {
-      setError({
-        type: "MISSING_KEY",
-        inAppBrowser: isInAppBrowser(navigator.userAgent),
-      });
-    } else {
-      setError({ type: "MISSING_SALT" });
-    }
+    setError(parseFragmentErrorToRedirectError(parsed.error));
     setState("error");
     return;
   }
@@ -199,31 +195,20 @@ async function runInitial(
   saltB64urlRef.current = parsed.saltB64url;
   const isProtected = parsed.saltB64url !== null;
 
-  // 2. Scrub the hash from the address bar IMMEDIATELY (SR-FRAG-04).
-  try {
-    window.history.replaceState(null, "", window.location.pathname);
-  } catch {
-    // replaceState can throw in highly unusual sandboxed contexts; harmless.
-  }
+  // Scrub the hash from the address bar IMMEDIATELY (SR-FRAG-04).
+  scrubFragmentFromAddressBar();
 
-  // 3. Fetch with single 404 retry.
+  // Fetch with single 404 retry.
   let body: Awaited<ReturnType<typeof getBlob>>;
   try {
     body = await getBlob(id, { onRetry: () => setState("confirming") });
   } catch (e) {
-    if (e instanceof ApiError) {
-      setError({
-        type: e.type === "NOT_FOUND" ? "NOT_FOUND" : "NETWORK_ERROR",
-      });
-      setState("error");
-      return;
-    }
-    setError({ type: "NETWORK_ERROR" });
+    setError(fetchErrorToRedirectError(e));
     setState("error");
     return;
   }
 
-  // 4. Branch on protected vs. open.
+  // Branch on protected vs. open.
   if ("protected" in body && body.protected === true) {
     if (!isProtected) {
       // Server says protected but the URL has no salt — this link was created
@@ -232,18 +217,14 @@ async function runInitial(
       setState("error");
       return;
     }
-    // Seed the UI counter from the server so fresh tabs show the truth,
-    // not the initial MAX. Prior wrong attempts on other tabs have already
-    // decremented this.
+    // Seed the UI counter from the server so fresh tabs show the truth.
     setAttemptsLeft(body.attemptsLeft);
     setState("password-required");
     return;
   }
 
-  // Unprotected — the blob is in the response body. Mismatch: URL had a
-  // salt but the server returned a v1 record. Fall back to the open flow
-  // (the salt is simply ignored) rather than erroring, so truncation the
-  // other direction is forgiving.
+  // Unprotected — the blob is in the response body. Mismatch (URL had a salt
+  // but server returned v1) falls back to the open flow rather than erroring.
   if (!("blob" in body)) {
     setError({ type: "NETWORK_ERROR" });
     setState("error");
@@ -259,104 +240,215 @@ async function runInitial(
   );
 }
 
+function parseFragmentErrorToRedirectError(
+  error: "MISSING_KEY" | "MISSING_SALT",
+): RedirectError {
+  if (error === "MISSING_KEY") {
+    return {
+      type: "MISSING_KEY",
+      inAppBrowser: isInAppBrowser(navigator.userAgent),
+    };
+  }
+  return { type: "MISSING_SALT" };
+}
+
+function fetchErrorToRedirectError(err: unknown): RedirectError {
+  if (err instanceof ApiError) {
+    return { type: err.type === "NOT_FOUND" ? "NOT_FOUND" : "NETWORK_ERROR" };
+  }
+  return { type: "NETWORK_ERROR" };
+}
+
+function scrubFragmentFromAddressBar(): void {
+  try {
+    window.history.replaceState(null, "", window.location.pathname);
+  } catch {
+    // replaceState can throw in highly unusual sandboxed contexts; harmless.
+  }
+}
+
 // ─── Unlock + decrypt path (v2 protected) ─────────────────────────────────────
+
+type UnlockOutcome =
+  | { kind: "ok"; blob: string }
+  | { kind: "wrong-password"; attemptsLeft?: number; retryAfterMs?: number }
+  | { kind: "backoff"; attemptsLeft?: number; retryAfterMs?: number }
+  | { kind: "link-destroyed" }
+  | { kind: "not-found" }
+  | { kind: "network-error" };
 
 async function runUnlock(
   id: string,
   password: string,
   keyB64url: string,
   saltB64url: string,
-  setState: (s: RedirectState) => void,
-  setError: (e: RedirectError) => void,
-  setDestinationHref: (h: string) => void,
-  setAttemptsLeft: (n: number) => void,
-  setPasswordError: (s: string | null) => void,
-  setBackoffUntil: (ms: number | null) => void,
+  setters: UnlockSetters,
 ): Promise<void> {
+  const {
+    setState,
+    setError,
+    setPasswordError,
+    setBackoffUntil,
+  } = setters;
   setState("verifying");
   setPasswordError(null);
   setBackoffUntil(null);
 
-  // Derive K_pwd locally and compute the verifier to send. K_pwd is held in
-  // memory briefly for the subsequent decrypt.
+  // Derive K_pwd and compute the verifier. K_pwd stays alive past this point
+  // so the subsequent decrypt can reuse it; it's scrubbed in the finally.
+  const derived = await deriveKPwdAndVerifier(password, saltB64url);
+  if (!derived.ok) {
+    setError({ type: derived.error });
+    setState("error");
+    return;
+  }
+  const { kPwd, verifierB64url } = derived;
+
+  try {
+    const outcome = await submitVerifier(id, verifierB64url);
+    if (outcome.kind !== "ok") {
+      applyUnlockFailure(outcome, setters);
+      return;
+    }
+    await decryptAndFinish(
+      id,
+      outcome.blob,
+      keyB64url,
+      saltB64url,
+      password,
+      setters,
+    );
+  } finally {
+    // K_pwd is no longer needed regardless of which path we took.
+    scrubBytes(kPwd);
+  }
+}
+
+async function deriveKPwdAndVerifier(
+  password: string,
+  saltB64url: string,
+): Promise<
+  | { ok: true; kPwd: Uint8Array; verifierB64url: string }
+  | { ok: false; error: "MISSING_SALT" | "DECRYPTION_FAILED" }
+> {
   let salt: Uint8Array;
   try {
     salt = base64urlDecode(saltB64url);
   } catch {
-    setError({ type: "MISSING_SALT" });
-    setState("error");
-    return;
+    return { ok: false, error: "MISSING_SALT" };
   }
 
-  let kPwd: Uint8Array;
-  let verifierB64url: string;
   try {
-    kPwd = await deriveKPwd(password, salt);
+    const kPwd = await deriveKPwd(password, salt);
     const verifier = await deriveVerifier(kPwd);
-    verifierB64url = base64urlEncode(verifier);
-    crypto.getRandomValues(verifier);
+    const verifierB64url = base64urlEncode(verifier);
+    scrubBytes(verifier);
+    return { ok: true, kPwd, verifierB64url };
   } catch {
-    setError({ type: "DECRYPTION_FAILED" });
-    setState("error");
-    return;
+    return { ok: false, error: "DECRYPTION_FAILED" };
   }
+}
 
-  // Submit verifier.
-  let blob: string;
+async function submitVerifier(
+  id: string,
+  verifierB64url: string,
+): Promise<UnlockOutcome> {
   try {
     const res = await unlockLink(id, { verifier: verifierB64url });
-    blob = res.blob;
+    return { kind: "ok", blob: res.blob };
   } catch (e) {
-    // Scrub K_pwd before any branch — we don't need it past this point if
-    // we're not going to decrypt.
-    if (e instanceof ApiError) {
-      if (e.type === "WRONG_PASSWORD") {
-        crypto.getRandomValues(kPwd);
-        if (typeof e.attemptsLeft === "number") {
-          setAttemptsLeft(e.attemptsLeft);
-        }
-        if (typeof e.retryAfterMs === "number" && e.retryAfterMs > 0) {
-          setBackoffUntil(Date.now() + e.retryAfterMs);
-        } else {
-          setBackoffUntil(null);
-        }
-        setPasswordError("Wrong password. Try again.");
-        setState("password-required");
-        return;
-      }
-      if (e.type === "BACKOFF") {
-        crypto.getRandomValues(kPwd);
-        if (typeof e.attemptsLeft === "number") {
-          setAttemptsLeft(e.attemptsLeft);
-        }
-        if (typeof e.retryAfterMs === "number" && e.retryAfterMs > 0) {
-          setBackoffUntil(Date.now() + e.retryAfterMs);
-        }
-        // Don't show a wrong-password message here — the user didn't
-        // submit a new guess, they just hit the gate too early.
-        setState("password-required");
-        return;
-      }
-      if (e.type === "LINK_DESTROYED") {
-        crypto.getRandomValues(kPwd);
-        setError({ type: "LINK_DESTROYED" });
-        setState("error");
-        return;
-      }
-      if (e.type === "NOT_FOUND") {
-        crypto.getRandomValues(kPwd);
-        setError({ type: "NOT_FOUND" });
-        setState("error");
-        return;
-      }
-    }
-    crypto.getRandomValues(kPwd);
-    setError({ type: "NETWORK_ERROR" });
-    setState("error");
-    return;
+    return mapUnlockApiError(e);
   }
+}
 
-  // Decrypt with K_enc = HKDF(fragment_key || K_pwd).
+function mapUnlockApiError(err: unknown): UnlockOutcome {
+  if (!(err instanceof ApiError)) return { kind: "network-error" };
+  switch (err.type) {
+    case "WRONG_PASSWORD":
+      return { kind: "wrong-password", ...attemptMetadata(err) };
+    case "BACKOFF":
+      return { kind: "backoff", ...attemptMetadata(err) };
+    case "LINK_DESTROYED":
+      return { kind: "link-destroyed" };
+    case "NOT_FOUND":
+      return { kind: "not-found" };
+    default:
+      return { kind: "network-error" };
+  }
+}
+
+function attemptMetadata(
+  err: ApiError,
+): { attemptsLeft?: number; retryAfterMs?: number } {
+  const out: { attemptsLeft?: number; retryAfterMs?: number } = {};
+  if (typeof err.attemptsLeft === "number") {
+    out.attemptsLeft = err.attemptsLeft;
+  }
+  if (typeof err.retryAfterMs === "number" && err.retryAfterMs > 0) {
+    out.retryAfterMs = err.retryAfterMs;
+  }
+  return out;
+}
+
+function applyUnlockFailure(
+  outcome: Exclude<UnlockOutcome, { kind: "ok" }>,
+  setters: UnlockSetters,
+): void {
+  const {
+    setState,
+    setError,
+    setAttemptsLeft,
+    setPasswordError,
+    setBackoffUntil,
+  } = setters;
+  switch (outcome.kind) {
+    case "wrong-password":
+      if (outcome.attemptsLeft !== undefined) {
+        setAttemptsLeft(outcome.attemptsLeft);
+      }
+      setBackoffUntil(
+        outcome.retryAfterMs !== undefined
+          ? Date.now() + outcome.retryAfterMs
+          : null,
+      );
+      setPasswordError("Wrong password. Try again.");
+      setState("password-required");
+      return;
+    case "backoff":
+      if (outcome.attemptsLeft !== undefined) {
+        setAttemptsLeft(outcome.attemptsLeft);
+      }
+      if (outcome.retryAfterMs !== undefined) {
+        setBackoffUntil(Date.now() + outcome.retryAfterMs);
+      }
+      // Don't show a wrong-password message — the user didn't submit a new
+      // guess, they just hit the gate too early.
+      setState("password-required");
+      return;
+    case "link-destroyed":
+      setError({ type: "LINK_DESTROYED" });
+      setState("error");
+      return;
+    case "not-found":
+      setError({ type: "NOT_FOUND" });
+      setState("error");
+      return;
+    case "network-error":
+      setError({ type: "NETWORK_ERROR" });
+      setState("error");
+      return;
+  }
+}
+
+async function decryptAndFinish(
+  id: string,
+  blob: string,
+  keyB64url: string,
+  saltB64url: string,
+  password: string,
+  setters: UnlockSetters,
+): Promise<void> {
+  const { setState, setError, setDestinationHref } = setters;
   setState("decrypting");
   let decryptedString: string;
   try {
@@ -367,23 +459,10 @@ async function runUnlock(
       password,
     );
   } catch (e) {
-    crypto.getRandomValues(kPwd);
-    if (e instanceof CryptoError) {
-      setError({
-        type:
-          e.type === "DECRYPTION_FAILED" || e.type === "PADDING_INVALID"
-            ? "TAMPERED"
-            : "DECRYPTION_FAILED",
-      });
-    } else {
-      setError({ type: "DECRYPTION_FAILED" });
-    }
+    setError(cryptoErrorToRedirectError(e));
     setState("error");
     return;
-  } finally {
-    crypto.getRandomValues(kPwd);
   }
-
   await finishWithPlaintext(
     id,
     decryptedString,
@@ -408,16 +487,7 @@ async function finishOpenRedirect(
   try {
     decryptedString = await decryptBlob(blob, keyB64url);
   } catch (e) {
-    if (e instanceof CryptoError) {
-      setError({
-        type:
-          e.type === "DECRYPTION_FAILED" || e.type === "PADDING_INVALID"
-            ? "TAMPERED"
-            : "DECRYPTION_FAILED",
-      });
-    } else {
-      setError({ type: "DECRYPTION_FAILED" });
-    }
+    setError(cryptoErrorToRedirectError(e));
     setState("error");
     return;
   }
@@ -428,6 +498,18 @@ async function finishOpenRedirect(
     setError,
     setDestinationHref,
   );
+}
+
+function cryptoErrorToRedirectError(err: unknown): RedirectError {
+  if (err instanceof CryptoError) {
+    return {
+      type:
+        err.type === "DECRYPTION_FAILED" || err.type === "PADDING_INVALID"
+          ? "TAMPERED"
+          : "DECRYPTION_FAILED",
+    };
+  }
+  return { type: "DECRYPTION_FAILED" };
 }
 
 async function finishWithPlaintext(
