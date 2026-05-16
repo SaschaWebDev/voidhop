@@ -18,8 +18,8 @@ import {
   PasswordCopyIcon,
   PasswordEyeIcon,
   PasswordRefreshIcon,
-  generatePassword,
-} from "@/components/password-input-icons";
+} from "@/components/icons";
+import { generatePassword } from "@/utils/generate-password";
 
 const COPY_FEEDBACK_MS = 1500;
 

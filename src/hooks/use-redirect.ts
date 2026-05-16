@@ -26,12 +26,8 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  AES_KEY_B64URL_LENGTH,
-  FRAGMENT_SALT_SEPARATOR,
-  MAX_PASSWORD_ATTEMPTS,
-  PASSWORD_SALT_B64URL_LENGTH,
-} from "@/constants";
+import { MAX_PASSWORD_ATTEMPTS } from "@/constants";
+import { parseFragment } from "@/crypto/fragment";
 import {
   base64urlDecode,
   base64urlEncode,
@@ -182,43 +178,26 @@ async function runInitial(
   keyB64urlRef: React.MutableRefObject<string | null>,
   saltB64urlRef: React.MutableRefObject<string | null>,
 ): Promise<void> {
-  // 1. Read & structurally validate the hash.
-  const rawHash = window.location.hash.startsWith("#")
-    ? window.location.hash.slice(1)
-    : window.location.hash;
-
-  // Strip any secondary `#` (defensive — no legitimate producer emits one).
-  const firstHashStripped = rawHash.split("#")[0] ?? "";
-  // Split on the salt separator (present only for v2 protected links).
-  const separatorIdx = firstHashStripped.indexOf(FRAGMENT_SALT_SEPARATOR);
-  const keyPart =
-    separatorIdx === -1
-      ? firstHashStripped
-      : firstHashStripped.slice(0, separatorIdx);
-  const saltPart =
-    separatorIdx === -1 ? "" : firstHashStripped.slice(separatorIdx + 1);
-
-  if (keyPart.length !== AES_KEY_B64URL_LENGTH) {
-    setError({
-      type: "MISSING_KEY",
-      inAppBrowser: isInAppBrowser(navigator.userAgent),
-    });
+  // 1. Read & structurally validate the hash. `parseFragment` handles the
+  //    secondary-`#` defense and the exact-length checks; we just surface
+  //    its error type to the state machine.
+  const parsed = parseFragment(window.location.hash);
+  if (!parsed.ok) {
+    if (parsed.error === "MISSING_KEY") {
+      setError({
+        type: "MISSING_KEY",
+        inAppBrowser: isInAppBrowser(navigator.userAgent),
+      });
+    } else {
+      setError({ type: "MISSING_SALT" });
+    }
     setState("error");
     return;
   }
 
-  // Protected link? Validate the salt length up-front so we can fail fast on
-  // a mangled fragment instead of prompting the user to type a password
-  // against a link that can never unlock.
-  const isProtected = separatorIdx !== -1;
-  if (isProtected && saltPart.length !== PASSWORD_SALT_B64URL_LENGTH) {
-    setError({ type: "MISSING_SALT" });
-    setState("error");
-    return;
-  }
-
-  keyB64urlRef.current = keyPart;
-  saltB64urlRef.current = isProtected ? saltPart : null;
+  keyB64urlRef.current = parsed.keyB64url;
+  saltB64urlRef.current = parsed.saltB64url;
+  const isProtected = parsed.saltB64url !== null;
 
   // 2. Scrub the hash from the address bar IMMEDIATELY (SR-FRAG-04).
   try {
@@ -273,7 +252,7 @@ async function runInitial(
   await finishOpenRedirect(
     id,
     body.blob,
-    keyPart,
+    parsed.keyB64url,
     setState,
     setError,
     setDestinationHref,

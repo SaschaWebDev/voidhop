@@ -14,9 +14,9 @@ import {
   generateDeletionToken,
   CryptoError,
 } from "@/crypto";
+import { assembleFragment } from "@/crypto/fragment";
 import { createLink } from "@/api/client";
 import { ApiError } from "@/api/types";
-import { FRAGMENT_SALT_SEPARATOR } from "@/constants";
 
 export type CreateState =
   | "idle"
@@ -156,10 +156,7 @@ export function useCreateLink(): UseCreateLinkResult {
         throw e;
       }
 
-      const fragment =
-        saltB64url !== null
-          ? `${keyB64url}${FRAGMENT_SALT_SEPARATOR}${saltB64url}`
-          : keyB64url;
+      const fragment = assembleFragment(keyB64url, saltB64url);
       const shortUrl = `${window.location.origin}/${id}#${fragment}`;
       const deleteUrl =
         deletionTokenB64url !== null

@@ -24,7 +24,7 @@ import "@fontsource/inter/600.css";
 import "@fontsource/jetbrains-mono/400.css";
 
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import qrcode from "qrcode-generator";
 import {
   useShortenForm,
@@ -35,30 +35,26 @@ import {
   PasswordCopyIcon,
   PasswordEyeIcon,
   PasswordRefreshIcon,
-  generatePassword,
-} from "@/components/password-input-icons";
+  IconWhatsApp,
+  IconTelegram,
+  IconEmail,
+  IconShare,
+  IconDoodlyArrow,
+} from "@/components/icons";
+import { Stars, VoidPortal, vp } from "@/components/void-portal";
+import { generatePassword } from "@/utils/generate-password";
 import { REPO_URL, TTL_OPTIONS, USES_LEFT_OPTIONS } from "@/constants";
 
 export const Route = createFileRoute("/")({
   component: Home,
 });
 
-const vp = {
-  bg: "#07050f",
-  bgMid: "#120a24",
-  ink: "#ece8ff",
-  inkDim: "rgba(236, 232, 255, 0.6)",
-  inkFaint: "rgba(236, 232, 255, 0.3)",
-  accent: "oklch(0.72 0.19 290)",
-  accent2: "oklch(0.78 0.16 220)",
-  line: "rgba(180, 160, 255, 0.18)",
-  card: "rgba(20, 14, 40, 0.45)",
-  display: '"Fraunces", "Cormorant Garamond", Georgia, serif',
-  sans: '"Inter", -apple-system, "Helvetica Neue", sans-serif',
-  mono: '"JetBrains Mono", "SF Mono", Menlo, monospace',
-};
-
 const COPY_FEEDBACK_MS = 1500;
+
+const VOID_STATS = [
+  ["AES-256 GCM", "Military Grade Encryption"],
+  ["0 logs", "forever"],
+] as const;
 
 function Home() {
   const f = useShortenForm();
@@ -123,10 +119,7 @@ function Home() {
             </p>
 
             <ul className="vp-stats">
-              {[
-                ["AES-256 GCM", "Military Grade Encryption"],
-                ["0 logs", "forever"],
-              ].map(([a, b]) => (
+              {VOID_STATS.map(([a, b]) => (
                 <li key={a}>
                   <div className="vp-stat-a">{a}</div>
                   <div className="vp-stat-b">{b}</div>
@@ -393,118 +386,6 @@ function VoidCheckbox({
   );
 }
 
-function IconWhatsApp() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 16 16"
-      fill="none"
-      aria-hidden="true"
-    >
-      <path
-        d="M13.601 2.326A7.854 7.854 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.099-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
-
-function IconTelegram() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 16 16"
-      fill="none"
-      aria-hidden="true"
-    >
-      <path
-        d="M14.3 1.7L1.4 6.8c-.5.2-.5.6 0 .7l3.3 1 1.3 4c.1.4.2.5.5.5s.3-.1.4-.2l1.8-1.8 3.3 2.4c.4.2.7.1.8-.4L14.9 2.5c.1-.6-.2-.9-.6-.8zM5.3 8.2l6.3-3.9-4.8 4.4-.2 2.1-1.3-2.6z"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
-
-function IconEmail() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 16 16"
-      fill="none"
-      aria-hidden="true"
-    >
-      <rect
-        x="2"
-        y="3.5"
-        width="12"
-        height="9"
-        rx="1.5"
-        stroke="currentColor"
-        strokeWidth="1.2"
-      />
-      <path
-        d="M2.5 4L8 8.5 13.5 4"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function IconShare() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 16 16"
-      fill="none"
-      aria-hidden="true"
-    >
-      <path
-        d="M4 10V12a1 1 0 001 1h6a1 1 0 001-1V10M8 2v7.5M5.5 4.5L8 2l2.5 2.5"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function IconDoodlyArrow() {
-  return (
-    <svg
-      width="48"
-      height="31"
-      viewBox="0 0 60 39"
-      fill="none"
-      aria-hidden="true"
-    >
-      <path
-        d="M4 6 C10 3, 22 2, 32 8 C38 12, 44 20, 50 30"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-      <path
-        d="M49 23 L50 30 L44 26"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-    </svg>
-  );
-}
-
 function VoidResult({
   shortUrl,
   expiry,
@@ -680,239 +561,6 @@ function VoidResult({
         Shorten another link
       </button>
     </div>
-  );
-}
-
-function Stars() {
-  const [size, setSize] = useState({ w: 1280, h: 900 });
-  useEffect(() => {
-    const u = () => setSize({ w: window.innerWidth, h: window.innerHeight });
-    u();
-    window.addEventListener("resize", u);
-    return () => window.removeEventListener("resize", u);
-  }, []);
-
-  const stars = useMemo(() => {
-    const out: Array<{ x: number; y: number; r: number; o: number }> = [];
-    let s = 7;
-    const rnd = () => {
-      s = (s * 1664525 + 1013904223) >>> 0;
-      return (s >>> 8) / 0xffffff;
-    };
-    for (let i = 0; i < 160; i++) {
-      out.push({
-        x: rnd() * size.w,
-        y: rnd() * size.h,
-        r: rnd() * 1.2,
-        o: rnd() * 0.8,
-      });
-    }
-    return out;
-  }, [size.w, size.h]);
-
-  return (
-    <svg className="vp-stars" width={size.w} height={size.h} aria-hidden="true">
-      {stars.map((s, i) => (
-        <circle key={i} cx={s.x} cy={s.y} r={s.r} fill="#fff" opacity={s.o} />
-      ))}
-    </svg>
-  );
-}
-
-function VoidPortal() {
-  const [size, setSize] = useState({ w: 1280, h: 900 });
-  useEffect(() => {
-    const u = () => setSize({ w: window.innerWidth, h: window.innerHeight });
-    u();
-    window.addEventListener("resize", u);
-    return () => window.removeEventListener("resize", u);
-  }, []);
-
-  const cx = size.w / 2;
-  const cy = Math.min(size.h / 2 + 40, size.h - 160);
-  const scale = Math.min(1, Math.max(0.55, size.w / 1280));
-
-  const particles = useMemo(() => {
-    const out: Array<{
-      angle: number;
-      radius: number;
-      size: number;
-      opacity: number;
-    }> = [];
-    let s = 42;
-    const rnd = () => {
-      s = (s * 1664525 + 1013904223) >>> 0;
-      return (s >>> 8) / 0xffffff;
-    };
-    for (let i = 0; i < 120; i++) {
-      const angle = rnd() * Math.PI * 2;
-      const radius = (280 + rnd() * 320) * scale;
-      const sz = 0.6 + rnd() * 2.4;
-      out.push({ angle, radius, size: sz, opacity: 0.3 + rnd() * 0.7 });
-    }
-    return out;
-  }, [scale]);
-
-  return (
-    <>
-      <style>{`
-        @keyframes vp-spin1 { to { transform: rotate(360deg); } }
-        @keyframes vp-spin2 { to { transform: rotate(-360deg); } }
-        @keyframes vp-pulse { 0%,100% { opacity: 0.4; transform: scale(1); } 50% { opacity: 0.7; transform: scale(1.06); } }
-      `}</style>
-      <svg
-        className="vp-portal"
-        width={size.w}
-        height={size.h}
-        aria-hidden="true"
-      >
-        <defs>
-          <radialGradient id="vp-core" cx="50%" cy="50%" r="50%">
-            <stop offset="0" stopColor="#000" stopOpacity="1" />
-            <stop offset="0.5" stopColor="#0a0418" stopOpacity="1" />
-            <stop offset="0.75" stopColor={vp.accent} stopOpacity="0.35" />
-            <stop offset="1" stopColor={vp.accent} stopOpacity="0" />
-          </radialGradient>
-          <radialGradient id="vp-glow" cx="50%" cy="50%" r="50%">
-            <stop offset="0" stopColor={vp.accent2} stopOpacity="0.25" />
-            <stop offset="1" stopColor={vp.accent2} stopOpacity="0" />
-          </radialGradient>
-          <filter id="vp-blur">
-            <feGaussianBlur stdDeviation="1.2" />
-          </filter>
-        </defs>
-
-        <circle cx={cx} cy={cy} r={500 * scale} fill="url(#vp-glow)" />
-
-        <g
-          className="vp-p-a"
-          style={{
-            transformOrigin: `${cx}px ${cy}px`,
-            animation: "vp-spin1 240s linear infinite",
-          }}
-          transform={`translate(${cx} ${cy})`}
-        >
-          {particles.slice(0, 60).map((p, i) => (
-            <circle
-              key={i}
-              cx={Math.cos(p.angle) * p.radius}
-              cy={Math.sin(p.angle) * p.radius * 0.6}
-              r={p.size}
-              fill={i % 3 === 0 ? vp.accent2 : "#d8ccff"}
-              opacity={p.opacity * 0.7}
-            />
-          ))}
-        </g>
-        <g
-          className="vp-p-b"
-          style={{
-            transformOrigin: `${cx}px ${cy}px`,
-            animation: "vp-spin2 180s linear infinite",
-          }}
-          transform={`translate(${cx} ${cy})`}
-        >
-          {particles.slice(60).map((p, i) => (
-            <circle
-              key={i}
-              cx={Math.cos(p.angle) * p.radius * 0.85}
-              cy={Math.sin(p.angle) * p.radius * 0.55}
-              r={p.size * 0.8}
-              fill={i % 4 === 0 ? vp.accent : "#b8a8ff"}
-              opacity={p.opacity * 0.55}
-            />
-          ))}
-        </g>
-
-        <g
-          className="vp-ring"
-          style={{
-            transformOrigin: `${cx}px ${cy}px`,
-            animation: "vp-spin1 80s linear infinite",
-          }}
-        >
-          <ellipse
-            cx={cx}
-            cy={cy}
-            rx={420 * scale}
-            ry={210 * scale}
-            fill="none"
-            stroke={vp.accent}
-            strokeOpacity="0.22"
-            strokeWidth="1"
-            strokeDasharray="2 12"
-          />
-        </g>
-        <g
-          className="vp-ring"
-          style={{
-            transformOrigin: `${cx}px ${cy}px`,
-            animation: "vp-spin2 120s linear infinite",
-          }}
-        >
-          <ellipse
-            cx={cx}
-            cy={cy}
-            rx={340 * scale}
-            ry={170 * scale}
-            fill="none"
-            stroke={vp.accent2}
-            strokeOpacity="0.35"
-            strokeWidth="1"
-          />
-        </g>
-        <g
-          className="vp-ring"
-          style={{
-            transformOrigin: `${cx}px ${cy}px`,
-            animation: "vp-spin1 55s linear infinite",
-          }}
-        >
-          <ellipse
-            cx={cx}
-            cy={cy}
-            rx={260 * scale}
-            ry={130 * scale}
-            fill="none"
-            stroke={vp.accent}
-            strokeOpacity="0.45"
-            strokeWidth="1.2"
-            strokeDasharray="30 8 4 8"
-          />
-        </g>
-
-        <circle
-          className="vp-core"
-          cx={cx}
-          cy={cy}
-          r={150 * scale}
-          fill="url(#vp-core)"
-          style={{
-            transformOrigin: `${cx}px ${cy}px`,
-            animation: "vp-pulse 6s ease-in-out infinite",
-          }}
-        />
-        <circle cx={cx} cy={cy} r={90 * scale} fill="#000" />
-        <circle
-          cx={cx}
-          cy={cy}
-          r={90 * scale}
-          fill="none"
-          stroke={vp.accent}
-          strokeOpacity="0.6"
-          strokeWidth="0.5"
-        />
-        <circle
-          cx={cx}
-          cy={cy}
-          r={92 * scale}
-          fill="none"
-          stroke="#fff"
-          strokeOpacity="0.15"
-          strokeWidth="2"
-          filter="url(#vp-blur)"
-        />
-      </svg>
-    </>
   );
 }
 
