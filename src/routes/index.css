@@ -33,6 +33,20 @@
   isolation: isolate;
 }
 
+/* Visually-hidden but accessible to screen readers. Used for aria-live
+   announcements (copy feedback) where the visual confirmation lives in a
+   button label change. */
+.vp-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 .vp-stars,
 .vp-portal {
   position: fixed;

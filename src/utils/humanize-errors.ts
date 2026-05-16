@@ -1,5 +1,6 @@
 import { CryptoError } from "@/crypto";
 import { ApiError } from "@/api/types";
+import { assertNever } from "@/utils/assert-never";
 
 export function humanizeInputError(type: string): string {
   switch (type) {
@@ -39,7 +40,15 @@ export function humanizeCreateError(err: CryptoError | ApiError): string {
       return "Could not reach VoidHop. Check your connection.";
     case "NOT_FOUND":
       return "VoidHop is misconfigured — the create endpoint is unreachable. If you're running locally, make sure both the frontend and the worker dev server are running, and check the worker console for errors.";
-    default:
+    case "SERVER_ERROR":
       return "Something went wrong on the server.";
+    case "WRONG_PASSWORD":
+    case "LINK_DESTROYED":
+    case "BACKOFF":
+      // Unlock-flow errors that can't legitimately surface during create;
+      // explicitly enumerated so the switch is exhaustive against ApiErrorType.
+      return "Something went wrong on the server.";
+    default:
+      return assertNever(err);
   }
 }

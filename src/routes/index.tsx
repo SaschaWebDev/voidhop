@@ -156,8 +156,9 @@ function Home() {
                 <div className="vp-card-title">Shorten a link</div>
                 <div className="vp-card-sub">Your URL is only known to you</div>
 
-                <VoidField label="destination">
+                <VoidField label="destination" htmlFor="vp-destination">
                   <input
+                    id="vp-destination"
                     type="text"
                     inputMode="url"
                     className={`vp-input${f.url ? " on" : ""}`}
@@ -177,24 +178,34 @@ function Home() {
                   )}
                 </VoidField>
 
-                <VoidField label="expires in">
-                  <div className="vp-ttl">
-                    {TTL_OPTIONS.map((o) => (
-                      <button
-                        key={o.seconds}
-                        type="button"
-                        className={`vp-ttl-btn${f.ttl === o.seconds ? " on" : ""}`}
-                        onClick={() => f.setTtl(o.seconds)}
-                        disabled={hopping}
-                      >
-                        {o.label}
-                      </button>
-                    ))}
+                <VoidField label="expires in" labelId="vp-ttl-label">
+                  <div
+                    className="vp-ttl"
+                    role="radiogroup"
+                    aria-labelledby="vp-ttl-label"
+                  >
+                    {TTL_OPTIONS.map((o) => {
+                      const checked = f.ttl === o.seconds;
+                      return (
+                        <button
+                          key={o.seconds}
+                          type="button"
+                          role="radio"
+                          aria-checked={checked}
+                          className={`vp-ttl-btn${checked ? " on" : ""}`}
+                          onClick={() => f.setTtl(o.seconds)}
+                          disabled={hopping}
+                        >
+                          {o.label}
+                        </button>
+                      );
+                    })}
                   </div>
                 </VoidField>
 
-                <VoidField label="usage limit">
+                <VoidField label="usage limit" htmlFor="vp-uses-left">
                   <select
+                    id="vp-uses-left"
                     className="vp-select"
                     value={f.usesLeft === undefined ? "" : String(f.usesLeft)}
                     onChange={(e) =>
@@ -334,16 +345,40 @@ function Home() {
   );
 }
 
+/**
+ * Form-field wrapper that renders a small uppercase label above its child
+ * control.
+ *
+ * - When `htmlFor` is provided the label is a real `<label htmlFor>`,
+ *   associating it with a single input/select for screen-reader users.
+ * - When `labelId` is provided instead, the label gets that `id`. The
+ *   child container (e.g. a TTL button group) can then reference it via
+ *   `aria-labelledby` to name a non-input group.
+ *
+ * Pass exactly one of the two, or neither for a purely visual label.
+ */
 function VoidField({
   label,
+  htmlFor,
+  labelId,
   children,
 }: {
   label: string;
+  htmlFor?: string;
+  labelId?: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="vp-field">
-      <div className="vp-field-label">{label}</div>
+      {htmlFor ? (
+        <label className="vp-field-label" htmlFor={htmlFor}>
+          {label}
+        </label>
+      ) : (
+        <div className="vp-field-label" id={labelId}>
+          {label}
+        </div>
+      )}
       {children}
     </div>
   );
@@ -421,6 +456,13 @@ function VoidResult({
 
   return (
     <div className="vp-result">
+      <span className="vp-sr-only" aria-live="polite">
+        {copied
+          ? "Short URL copied to clipboard."
+          : deleteCopied
+            ? "Delete URL copied to clipboard."
+            : ""}
+      </span>
       <div className="vp-result-kicker">
         Shortened · Only you know the destination
       </div>
