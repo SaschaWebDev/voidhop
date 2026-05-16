@@ -508,7 +508,8 @@ function VoidResult({
         <div className="vp-revoke">
           <div className="vp-revoke-text">
             <div className="vp-revoke-label">
-              DELETE URL · save this for deletion
+              <span className="vp-revoke-label-key">DELETE URL</span> · save
+              this for deletion
             </div>
             <code>{deleteUrl}</code>
           </div>
@@ -1402,6 +1403,9 @@ const css = `
   letter-spacing: 0.14em;
   text-transform: uppercase;
   margin-bottom: 4px;
+}
+.vp-revoke-label-key {
+  color: #c0394d;
 }
 .vp-revoke code {
   word-break: break-all;
