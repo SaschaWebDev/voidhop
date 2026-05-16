@@ -9,3 +9,13 @@ declare const __BUILD_SHA__: string;
 
 /** First 7 characters of `__BUILD_SHA__` for display. `"dev"` in development. */
 declare const __BUILD_SHA_SHORT__: string;
+
+/**
+ * CSS Modules — Vite hashes per-file class names at build time. Importing
+ * a `.module.css` file yields a default-exported `{ className: hashedName }`
+ * map so JSX can reference styles as `styles.root`, etc.
+ */
+declare module "*.module.css" {
+  const classes: { readonly [key: string]: string };
+  export default classes;
+}

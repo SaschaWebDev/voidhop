@@ -1,4 +1,6 @@
-const VOID_STATS = [
+import styles from "@/routes/index.module.css";
+
+const HOME_STATS = [
   ["AES-256 GCM", "Military Grade Encryption"],
   ["0 logs", "forever"],
 ] as const;
@@ -8,29 +10,29 @@ const VOID_STATS = [
  */
 export function Hero() {
   return (
-    <section className="vp-pitch">
-      <div className="vp-pill">
-        <span className="vp-pill-dot" />
+    <section>
+      <div className={styles.pill}>
+        <span className={styles.pillDot} />
         encrypted · client-side · zero-knowledge
       </div>
 
-      <h1 className="vp-h1">
-        Warp right <span className="vp-h1-accent">through the</span>
+      <h1 className={styles.h1}>
+        Warp right <span className={styles.h1Accent}>through the</span>
         <br />
-        <span className="vp-h1-accent">void.</span>
+        <span className={styles.h1Accent}>void.</span>
       </h1>
 
-      <p className="vp-lede">
+      <p className={styles.lede}>
         Your short link takes you to your destination without anyone knowing
         where you're going (even us). The URL is encrypted in your local
         browser and deleted immediately. No accounts. No tracking. Just void.
       </p>
 
-      <ul className="vp-stats">
-        {VOID_STATS.map(([a, b]) => (
+      <ul className={styles.stats}>
+        {HOME_STATS.map(([a, b]) => (
           <li key={a}>
-            <div className="vp-stat-a">{a}</div>
-            <div className="vp-stat-b">{b}</div>
+            <div className={styles.statA}>{a}</div>
+            <div className={styles.statB}>{b}</div>
           </li>
         ))}
       </ul>

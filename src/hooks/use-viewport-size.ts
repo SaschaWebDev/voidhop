@@ -11,8 +11,8 @@ const DEFAULT_SIZE: ViewportSize = { w: 1280, h: 900 };
  * Track the current viewport size and re-render on window resize. SSR-safe:
  * returns a sensible default on the server, then syncs to `window` on mount.
  *
- * Used by the Void Portal background components (Stars, VoidPortal) which
- * recompute their decorative geometry on every resize.
+ * Used by the home page's cosmic background components (Stars, Portal),
+ * which recompute their decorative geometry on every resize.
  */
 export function useViewportSize(): ViewportSize {
   const [size, setSize] = useState<ViewportSize>(DEFAULT_SIZE);

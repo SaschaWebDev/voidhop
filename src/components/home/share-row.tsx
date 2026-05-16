@@ -4,6 +4,7 @@ import {
   IconTelegram,
   IconWhatsApp,
 } from "@/components/icons";
+import styles from "@/routes/index.module.css";
 
 interface ShareRowProps {
   shortUrl: string;
@@ -21,14 +22,14 @@ export function ShareRow({ shortUrl }: ShareRowProps) {
     typeof navigator !== "undefined" && typeof navigator.share === "function";
 
   return (
-    <div className="vp-share">
-      <span className="vp-share-label">SHARE VIA</span>
-      <div className="vp-share-icons">
+    <div className={styles.share}>
+      <span className={styles.shareLabel}>SHARE VIA</span>
+      <div className={styles.shareIcons}>
         <a
           href={`https://wa.me/?text=${encodeURIComponent(shortUrl)}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="vp-share-icon"
+          className={styles.shareIcon}
           title="share via WhatsApp"
         >
           <IconWhatsApp />
@@ -37,14 +38,14 @@ export function ShareRow({ shortUrl }: ShareRowProps) {
           href={`https://t.me/share/url?url=${encodeURIComponent(shortUrl)}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="vp-share-icon"
+          className={styles.shareIcon}
           title="share via Telegram"
         >
           <IconTelegram />
         </a>
         <a
           href={`mailto:?subject=${encodeURIComponent("Short link")}&body=${encodeURIComponent(shortUrl)}`}
-          className="vp-share-icon"
+          className={styles.shareIcon}
           title="share via email"
         >
           <IconEmail />
@@ -52,7 +53,7 @@ export function ShareRow({ shortUrl }: ShareRowProps) {
         {canShare && (
           <button
             type="button"
-            className="vp-share-icon"
+            className={styles.shareIcon}
             onClick={() => {
               navigator
                 .share({ title: "voidhop", url: shortUrl })

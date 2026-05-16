@@ -6,6 +6,7 @@ import {
 } from "@/components/icons";
 import { copyToClipboard } from "@/hooks/use-shorten-form";
 import { generatePassword } from "@/utils/generate-password";
+import styles from "@/routes/index.module.css";
 
 const COPY_FEEDBACK_MS = 1500;
 
@@ -24,7 +25,11 @@ interface PasswordFieldProps {
  * shoulder-surf safety). Generate fills the field and reveals it so the
  * user can verify before submitting.
  */
-export function PasswordField({ value, onChange, disabled }: PasswordFieldProps) {
+export function PasswordField({
+  value,
+  onChange,
+  disabled,
+}: PasswordFieldProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -45,11 +50,11 @@ export function PasswordField({ value, onChange, disabled }: PasswordFieldProps)
   };
 
   return (
-    <div className="vp-pwd">
-      <div className="vp-pwd-wrap">
+    <div className={styles.pwd}>
+      <div className={styles.pwdWrap}>
         <input
           type={showPassword ? "text" : "password"}
-          className="vp-pwd-input"
+          className={styles.pwdInput}
           placeholder="password"
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -58,7 +63,7 @@ export function PasswordField({ value, onChange, disabled }: PasswordFieldProps)
         />
         <button
           type="button"
-          className={`vp-pwd-btn${copied ? " vp-pwd-btn-copied" : ""}`}
+          className={`${styles.pwdBtn}${copied ? ` ${styles.pwdBtnCopied}` : ""}`}
           onClick={onCopy}
           title={copied ? "copied" : "copy password"}
           tabIndex={-1}
@@ -68,7 +73,7 @@ export function PasswordField({ value, onChange, disabled }: PasswordFieldProps)
         </button>
         <button
           type="button"
-          className="vp-pwd-btn"
+          className={styles.pwdBtn}
           onClick={onToggle}
           title={showPassword ? "hide password" : "show password"}
           tabIndex={-1}
@@ -78,7 +83,7 @@ export function PasswordField({ value, onChange, disabled }: PasswordFieldProps)
         </button>
         <button
           type="button"
-          className="vp-pwd-btn"
+          className={styles.pwdBtn}
           onClick={onGenerate}
           title="generate random password"
           tabIndex={-1}
