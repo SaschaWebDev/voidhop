@@ -1,0 +1,10 @@
+{
+  "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+  "entry": ["worker/index.ts"],
+  "ignoreExports": [
+    {
+      "file": "src/constants/index.ts",
+      "exports": ["*"]
+    }
+  ]
+}

@@ -8,4 +8,3 @@
 export { Stars } from "./stars";
 export { VoidPortal } from "./void-portal";
 export { vp } from "./tokens";
-export type { VpToken } from "./tokens";

@@ -41,3 +41,8 @@ Thumbs.db
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Audit / report artifacts (.fallowrc.json is committed; the report output isn't)
+.fallow-report.json
+.fallow/
+chrome-lighthouse-*.json

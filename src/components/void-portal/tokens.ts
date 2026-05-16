@@ -21,5 +21,3 @@ export const vp = {
   sans: '"Inter", -apple-system, "Helvetica Neue", sans-serif',
   mono: '"JetBrains Mono", "SF Mono", Menlo, monospace',
 } as const;
-
-export type VpToken = keyof typeof vp;
