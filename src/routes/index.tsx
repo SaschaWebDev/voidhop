@@ -31,6 +31,12 @@ import {
   copyToClipboard,
   formatExpiry,
 } from "@/hooks/use-shorten-form";
+import {
+  PasswordCopyIcon,
+  PasswordEyeIcon,
+  PasswordRefreshIcon,
+  generatePassword,
+} from "@/components/password-input-icons";
 import { REPO_URL, TTL_OPTIONS, USES_LEFT_OPTIONS } from "@/constants";
 
 export const Route = createFileRoute("/")({
@@ -52,9 +58,13 @@ const vp = {
   mono: '"JetBrains Mono", "SF Mono", Menlo, monospace',
 };
 
+const COPY_FEEDBACK_MS = 1500;
+
 function Home() {
   const f = useShortenForm();
   const hopping = f.isBusy;
+  const [showPassword, setShowPassword] = useState(false);
+  const [pwCopied, setPwCopied] = useState(false);
 
   return (
     <>
@@ -224,24 +234,60 @@ function Home() {
 
                 {f.protect && (
                   <div className="vp-pwd">
-                    <input
-                      type="password"
-                      className="vp-input"
-                      placeholder="password"
-                      value={f.password}
-                      onChange={(e) => f.setPassword(e.target.value)}
-                      disabled={hopping}
-                      autoComplete="new-password"
-                    />
-                    <input
-                      type="password"
-                      className="vp-input"
-                      placeholder="confirm"
-                      value={f.confirmPassword}
-                      onChange={(e) => f.setConfirmPassword(e.target.value)}
-                      disabled={hopping}
-                      autoComplete="new-password"
-                    />
+                    <div className="vp-pwd-wrap">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        className="vp-pwd-input"
+                        placeholder="password"
+                        value={f.password}
+                        onChange={(e) => f.setPassword(e.target.value)}
+                        disabled={hopping}
+                        autoComplete="new-password"
+                      />
+                      <button
+                        type="button"
+                        className={`vp-pwd-btn${pwCopied ? " vp-pwd-btn-copied" : ""}`}
+                        onClick={async () => {
+                          if (pwCopied || f.password.length === 0) return;
+                          if (await copyToClipboard(f.password)) {
+                            setShowPassword(false);
+                            setPwCopied(true);
+                            window.setTimeout(
+                              () => setPwCopied(false),
+                              COPY_FEEDBACK_MS,
+                            );
+                          }
+                        }}
+                        title={pwCopied ? "copied" : "copy password"}
+                        tabIndex={-1}
+                        disabled={hopping || f.password.length === 0}
+                      >
+                        <PasswordCopyIcon copied={pwCopied} />
+                      </button>
+                      <button
+                        type="button"
+                        className="vp-pwd-btn"
+                        onClick={() => setShowPassword((v) => !v)}
+                        title={showPassword ? "hide password" : "show password"}
+                        tabIndex={-1}
+                        disabled={hopping || f.password.length === 0}
+                      >
+                        <PasswordEyeIcon shown={showPassword} />
+                      </button>
+                      <button
+                        type="button"
+                        className="vp-pwd-btn"
+                        onClick={() => {
+                          f.setPassword(generatePassword());
+                          setShowPassword(true);
+                        }}
+                        title="generate random password"
+                        tabIndex={-1}
+                        disabled={hopping}
+                      >
+                        <PasswordRefreshIcon />
+                      </button>
+                    </div>
                   </div>
                 )}
                 {f.passwordError && (
@@ -1043,14 +1089,66 @@ const css = `
 }
 .vp-pwd {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 10px;
   margin: -4px 0 18px;
 }
-@media (max-width: 540px) {
-  .vp-pwd {
-    grid-template-columns: 1fr;
-  }
+.vp-pwd-wrap {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid ${vp.line};
+  border-radius: 10px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.vp-pwd-wrap:focus-within {
+  border-color: ${vp.accent};
+  box-shadow: 0 0 0 4px rgba(180, 120, 255, 0.12);
+}
+.vp-pwd-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 14px 16px;
+  color: ${vp.ink};
+  font-size: 15px;
+  font-family: ${vp.mono};
+}
+.vp-pwd-input::placeholder {
+  color: ${vp.inkFaint};
+}
+.vp-pwd-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  background: none;
+  border: none;
+  border-left: 1px solid ${vp.line};
+  color: ${vp.inkFaint};
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.vp-pwd-btn:hover:not(:disabled) {
+  color: ${vp.ink};
+}
+.vp-pwd-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.vp-pwd-btn-copied {
+  color: ${vp.accent};
+}
+.vp-pwd-btn-copied svg {
+  animation: vpPwCheckPop 0.25s ease-out;
+}
+@keyframes vpPwCheckPop {
+  0% { transform: scale(0.5); opacity: 0; }
+  60% { transform: scale(1.15); }
+  100% { transform: scale(1); opacity: 1; }
 }
 .vp-err-inline {
   margin-top: 10px;

@@ -13,6 +13,15 @@
 
 import { useEffect, useState } from "react";
 import { MAX_PASSWORD_ATTEMPTS } from "@/constants";
+import { copyToClipboard } from "@/hooks/use-shorten-form";
+import {
+  PasswordCopyIcon,
+  PasswordEyeIcon,
+  PasswordRefreshIcon,
+  generatePassword,
+} from "@/components/password-input-icons";
+
+const COPY_FEEDBACK_MS = 1500;
 
 export interface PasswordPromptProps {
   /** Remaining attempts before the link self-destructs. */
@@ -39,6 +48,8 @@ export function PasswordPrompt({
   onSubmit,
 }: PasswordPromptProps) {
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [pwCopied, setPwCopied] = useState(false);
 
   // Tick to force a re-render while a backoff countdown is active. The
   // actual gating logic compares `backoffUntil` to the current time, so
@@ -80,17 +91,62 @@ export function PasswordPrompt({
           <label htmlFor="unlock-password" className="field-label">
             Password
           </label>
-          <input
-            id="unlock-password"
-            type="password"
-            className="field-input"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            disabled={busy || backoffActive}
-            autoComplete="off"
-            autoFocus
-            required
-          />
+          <div className="pwd-field">
+            <input
+              id="unlock-password"
+              type={showPassword ? "text" : "password"}
+              className="pwd-field-input"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={busy || backoffActive}
+              autoComplete="off"
+              autoFocus
+              required
+            />
+            <button
+              type="button"
+              className={`pwd-field-btn${pwCopied ? " pwd-field-btn-copied" : ""}`}
+              onClick={async () => {
+                if (pwCopied || password.length === 0) return;
+                if (await copyToClipboard(password)) {
+                  setShowPassword(false);
+                  setPwCopied(true);
+                  window.setTimeout(
+                    () => setPwCopied(false),
+                    COPY_FEEDBACK_MS,
+                  );
+                }
+              }}
+              title={pwCopied ? "copied" : "copy password"}
+              tabIndex={-1}
+              disabled={busy || backoffActive || password.length === 0}
+            >
+              <PasswordCopyIcon copied={pwCopied} />
+            </button>
+            <button
+              type="button"
+              className="pwd-field-btn"
+              onClick={() => setShowPassword((v) => !v)}
+              title={showPassword ? "hide password" : "show password"}
+              tabIndex={-1}
+              disabled={busy || backoffActive || password.length === 0}
+            >
+              <PasswordEyeIcon shown={showPassword} />
+            </button>
+            <button
+              type="button"
+              className="pwd-field-btn"
+              onClick={() => {
+                setPassword(generatePassword());
+                setShowPassword(true);
+              }}
+              title="generate random password"
+              tabIndex={-1}
+              disabled={busy || backoffActive}
+            >
+              <PasswordRefreshIcon />
+            </button>
+          </div>
           {backoffActive ? (
             <p className="field-help" style={{ color: "var(--warning-fg)" }}>
               Wait {backoffSeconds} second{backoffSeconds === 1 ? "" : "s"}{" "}
