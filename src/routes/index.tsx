@@ -1039,7 +1039,7 @@ const css = `
   font-family: ${vp.sans};
   font-size: 13px;
   font-weight: 400;
-  transition: all 0.15s;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 .vp-ttl-btn:hover:not(:disabled) {
   border-color: rgba(180, 160, 255, 0.4);
@@ -1047,7 +1047,7 @@ const css = `
 .vp-ttl-btn.on {
   background: linear-gradient(135deg, ${vp.accent}, ${vp.accent2});
   color: #0a0418;
-  border: none;
+  border: 1px solid transparent;
   font-weight: 600;
 }
 .vp-toggles {
