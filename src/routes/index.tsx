@@ -1000,6 +1000,7 @@ const css = `
   border-color: ${vp.accent};
   box-shadow: 0 0 0 4px rgba(180, 120, 255, 0.12);
 }
+.vp-input:focus-visible { outline: none; }
 .vp-select {
   width: 100%;
   background: rgba(0, 0, 0, 0.3);
@@ -1018,6 +1019,7 @@ const css = `
 .vp-select:focus {
   border-color: ${vp.accent};
 }
+.vp-select:focus-visible { outline: none; }
 .vp-select option {
   background: ${vp.bg};
   color: ${vp.ink};
@@ -1120,6 +1122,7 @@ const css = `
 .vp-pwd-input::placeholder {
   color: ${vp.inkFaint};
 }
+.vp-pwd-input:focus-visible { outline: none; }
 .vp-pwd-btn {
   display: flex;
   align-items: center;
