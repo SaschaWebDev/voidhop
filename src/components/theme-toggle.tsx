@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 type Theme = "light" | "dark";
 const STORAGE_KEY = "voidhop-theme";
 
-function detectInitialTheme(): Theme {
+export function detectInitialTheme(): Theme {
   if (typeof window === "undefined") return "light";
   const stored = window.localStorage.getItem(STORAGE_KEY);
   if (stored === "light" || stored === "dark") return stored;

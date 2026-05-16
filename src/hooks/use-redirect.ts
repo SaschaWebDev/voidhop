@@ -89,7 +89,7 @@ export interface UseRedirectResult {
   submitPassword: ((password: string) => void) | null;
 }
 
-interface UnlockSetters {
+export interface UnlockSetters {
   setState: (s: RedirectState) => void;
   setError: (e: RedirectError) => void;
   setDestinationHref: (h: string) => void;
@@ -269,7 +269,7 @@ function scrubFragmentFromAddressBar(): void {
 
 // ─── Unlock + decrypt path (v2 protected) ─────────────────────────────────────
 
-type UnlockOutcome =
+export type UnlockOutcome =
   | { kind: "ok"; blob: string }
   | { kind: "wrong-password"; attemptsLeft?: number; retryAfterMs?: number }
   | { kind: "backoff"; attemptsLeft?: number; retryAfterMs?: number }
@@ -361,7 +361,7 @@ async function submitVerifier(
   }
 }
 
-function mapUnlockApiError(err: unknown): UnlockOutcome {
+export function mapUnlockApiError(err: unknown): UnlockOutcome {
   if (!(err instanceof ApiError)) return { kind: "network-error" };
   switch (err.type) {
     case "WRONG_PASSWORD":
@@ -390,7 +390,7 @@ function attemptMetadata(
   return out;
 }
 
-function applyUnlockFailure(
+export function applyUnlockFailure(
   outcome: Exclude<UnlockOutcome, { kind: "ok" }>,
   setters: UnlockSetters,
 ): void {

@@ -140,7 +140,7 @@ function normalizeHextets(hextets: string[]): string[] | null {
   return out;
 }
 
-function isValidHextet(s: string): boolean {
+export function isValidHextet(s: string): boolean {
   if (s.length === 0 || s.length > 4) return false;
   for (let i = 0; i < s.length; i++) {
     const c = s.charCodeAt(i);

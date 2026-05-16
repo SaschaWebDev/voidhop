@@ -11,11 +11,34 @@
  */
 
 import { Hono } from "hono";
+import type { Context } from "hono";
 import type { HonoEnv } from "./types";
 import { securityHeadersMiddleware } from "./middleware/security-headers";
 import { corsMiddleware } from "./middleware/cors";
 import { mountLinksRoutes } from "./routes/links";
 import { mountHealthRoutes } from "./routes/health";
+
+/**
+ * Hono `onError` handler — logs the failure to the wrangler dev console
+ * with enough context to diagnose without code-spelunking, then returns a
+ * generic 500 to the client so internal details never leak over the wire.
+ *
+ * Exported so the unit suite can assert the logging shape + 500 response
+ * without standing up a full Hono request.
+ */
+export function handleUnhandledError(
+  err: unknown,
+  c: Context<HonoEnv>,
+): Response {
+  const errName = err instanceof Error ? err.name : "UnknownError";
+  const errMessage = err instanceof Error ? err.message : String(err);
+  const errStack = err instanceof Error ? err.stack : undefined;
+  console.error("[voidhop] unhandled error in handler");
+  console.error("  request:", c.req.method, c.req.url);
+  console.error("  error  :", errName, "—", errMessage);
+  if (errStack) console.error(errStack);
+  return c.json({ error: "SERVER_ERROR" }, 500);
+}
 
 const app = new Hono<HonoEnv>();
 
@@ -38,18 +61,6 @@ app.notFound((c) =>
   ),
 );
 
-app.onError((err, c) => {
-  // Log full request + error context to the wrangler dev console so the next
-  // failure is debuggable without code-spelunking. Response body still hides
-  // internal details from clients.
-  const errName = err instanceof Error ? err.name : "UnknownError";
-  const errMessage = err instanceof Error ? err.message : String(err);
-  const errStack = err instanceof Error ? err.stack : undefined;
-  console.error("[voidhop] unhandled error in handler");
-  console.error("  request:", c.req.method, c.req.url);
-  console.error("  error  :", errName, "—", errMessage);
-  if (errStack) console.error(errStack);
-  return c.json({ error: "SERVER_ERROR" }, 500);
-});
+app.onError(handleUnhandledError);
 
 export default app;
