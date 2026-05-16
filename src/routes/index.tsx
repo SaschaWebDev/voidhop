@@ -443,7 +443,7 @@ function VoidResult({
     const qr = qrcode(0, "M");
     qr.addData(shortUrl);
     qr.make();
-    qrRef.current.innerHTML = qr.createImgTag(2, 0);
+    qrRef.current.innerHTML = qr.createImgTag(4, 2);
   }, [shortUrl]);
 
   return (
@@ -455,27 +455,30 @@ function VoidResult({
         Done. <em>Here's your link.</em>
       </h2>
 
-      <div className={`vp-result-url-row${shaking ? " warn" : ""}`}>
-        {!hasCopiedOnce && (
-          <div className="vp-doodly-arrow" aria-hidden="true">
-            <span className="vp-doodly-text">copy this</span>
-            <IconDoodlyArrow />
-          </div>
-        )}
-        <span className="vp-result-url">{shortUrl}</span>
-        <button
-          type="button"
-          className="vp-result-copy"
-          onClick={async () => {
-            if (await copyToClipboard(shortUrl)) {
-              setCopied(true);
-              setHasCopiedOnce(true);
-              window.setTimeout(() => setCopied(false), 1400);
-            }
-          }}
-        >
-          {copied ? "Copied ✓" : "Copy"}
-        </button>
+      <div className="vp-result-row">
+        <div className={`vp-result-url-row${shaking ? " warn" : ""}`}>
+          {!hasCopiedOnce && (
+            <div className="vp-doodly-arrow" aria-hidden="true">
+              <span className="vp-doodly-text">copy this</span>
+              <IconDoodlyArrow />
+            </div>
+          )}
+          <span className="vp-result-url">{shortUrl}</span>
+          <button
+            type="button"
+            className="vp-result-copy"
+            onClick={async () => {
+              if (await copyToClipboard(shortUrl)) {
+                setCopied(true);
+                setHasCopiedOnce(true);
+                window.setTimeout(() => setCopied(false), 1400);
+              }
+            }}
+          >
+            {copied ? "Copied ✓" : "Copy"}
+          </button>
+        </div>
+        <div className="vp-qr" ref={qrRef} aria-label="QR code" />
       </div>
 
       <dl className="vp-meta">
@@ -524,24 +527,21 @@ function VoidResult({
         </div>
       )}
 
-      <div className="vp-result-foot">
-        <div className="vp-qr" ref={qrRef} aria-label="QR code" />
-        <button
-          type="button"
-          className="vp-reset"
-          onClick={() => {
-            if (!hasCopiedOnce && !warned) {
-              setWarned(true);
-              setShaking(true);
-              window.setTimeout(() => setShaking(false), 500);
-              return;
-            }
-            onReset();
-          }}
-        >
-          Shorten another link
-        </button>
-      </div>
+      <button
+        type="button"
+        className="vp-reset"
+        onClick={() => {
+          if (!hasCopiedOnce && !warned) {
+            setWarned(true);
+            setShaking(true);
+            window.setTimeout(() => setShaking(false), 500);
+            return;
+          }
+          onReset();
+        }}
+      >
+        Shorten another link
+      </button>
     </div>
   );
 }
@@ -1422,27 +1422,36 @@ const css = `
   border-color: ${vp.accent};
   color: ${vp.accent2};
 }
-.vp-result-foot {
+.vp-result-row {
   display: flex;
+  align-items: stretch;
   gap: 14px;
-  align-items: center;
-  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.vp-result-row > .vp-result-url-row {
+  flex: 1 1 auto;
+  margin-bottom: 0;
 }
 .vp-qr {
-  padding: 8px;
-  background: rgba(180, 160, 255, 0.08);
+  flex-shrink: 0;
+  width: 118px;
+  height: 118px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  background: #fff;
   border: 1px solid ${vp.line};
-  border-radius: 10px;
+  border-radius: 12px;
 }
 .vp-qr img {
   display: block;
+  width: 100%;
+  height: 100%;
   image-rendering: pixelated;
-  filter: brightness(0) saturate(100%) invert(89%) sepia(30%) saturate(2118%)
-    hue-rotate(203deg) brightness(104%) contrast(94%);
 }
 .vp-reset {
-  flex: 1;
-  min-width: 160px;
+  width: 100%;
   padding: 14px 0;
   background: transparent;
   color: ${vp.ink};
@@ -1451,18 +1460,20 @@ const css = `
   font-size: 13px;
   cursor: pointer;
   font-family: ${vp.sans};
+  transition: border-color 0.15s, color 0.15s;
 }
 .vp-reset:hover {
   border-color: ${vp.accent};
   color: ${vp.accent2};
 }
-@media (max-width: 420px) {
-  .vp-result-foot {
+@media (max-width: 540px) {
+  .vp-result-row {
     flex-direction: column;
-    align-items: stretch;
   }
   .vp-qr {
     align-self: center;
+    width: 140px;
+    height: 140px;
   }
 }
 .vp-footer {
