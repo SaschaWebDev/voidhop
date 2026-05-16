@@ -393,6 +393,29 @@ function VoidCheckbox({
   );
 }
 
+function IconDoodlyArrow() {
+  return (
+    <svg width="48" height="31" viewBox="0 0 60 39" fill="none" aria-hidden="true">
+      <path
+        d="M4 6 C10 3, 22 2, 32 8 C38 12, 44 20, 50 30"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+      <path
+        d="M49 23 L50 30 L44 26"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </svg>
+  );
+}
+
 function VoidResult({
   shortUrl,
   expiry,
@@ -433,6 +456,12 @@ function VoidResult({
       </h2>
 
       <div className={`vp-result-url-row${shaking ? " warn" : ""}`}>
+        {!hasCopiedOnce && (
+          <div className="vp-doodly-arrow" aria-hidden="true">
+            <span className="vp-doodly-text">copy this</span>
+            <IconDoodlyArrow />
+          </div>
+        )}
         <span className="vp-result-url">{shortUrl}</span>
         <button
           type="button"
@@ -1258,6 +1287,35 @@ const css = `
   gap: 12px;
   flex-wrap: wrap;
   transition: border-color 0.2s;
+  position: relative;
+}
+.vp-doodly-arrow {
+  position: absolute;
+  top: -34px;
+  right: 44px;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  pointer-events: none;
+  color: rgba(236, 232, 255, 0.42);
+  animation: vpDoodlyIn 0.35s ease;
+}
+.vp-doodly-text {
+  font-family: ${vp.display};
+  font-size: 13px;
+  font-style: italic;
+  font-weight: 300;
+  white-space: nowrap;
+  transform: rotate(-4deg);
+  margin-bottom: 6px;
+  color: rgba(236, 232, 255, 0.5);
+}
+@keyframes vpDoodlyIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (max-width: 540px) {
+  .vp-doodly-arrow { display: none; }
 }
 @keyframes vpShake {
   0%, 100% { transform: translateX(0); }
