@@ -94,25 +94,18 @@ export function useShortenForm() {
 }
 
 export function copyToClipboard(text: string): Promise<boolean> {
-  if (navigator.clipboard?.writeText) {
-    return navigator.clipboard.writeText(text).then(
-      () => true,
-      () => false,
-    );
-  }
-  try {
-    const el = document.createElement("textarea");
-    el.value = text;
-    el.style.position = "absolute";
-    el.style.left = "-9999px";
-    document.body.appendChild(el);
-    el.select();
-    const ok = document.execCommand("copy");
-    document.body.removeChild(el);
-    return Promise.resolve(ok);
-  } catch {
+  // `navigator.clipboard.writeText` is available in every browser we
+  // target. The deprecated `document.execCommand("copy")` fallback used to
+  // live here but was removed — modern browsers no longer require it and
+  // the fallback was unreliable in practice. If the API is unavailable
+  // (e.g. insecure context), surface `false` so callers can degrade.
+  if (!navigator.clipboard?.writeText) {
     return Promise.resolve(false);
   }
+  return navigator.clipboard.writeText(text).then(
+    () => true,
+    () => false,
+  );
 }
 
 export function formatExpiry(expiresAt: string): string {

@@ -24,7 +24,7 @@ import "@fontsource/inter/600.css";
 import "@fontsource/jetbrains-mono/400.css";
 
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import qrcode from "qrcode-generator";
 import {
   useShortenForm,
@@ -138,12 +138,8 @@ function Home() {
                 shortUrl={f.result.shortUrl}
                 expiry={formatExpiry(f.result.expiresAt)}
                 passwordProtected={f.result.passwordProtected}
-                {...(f.result.usesLeft !== undefined
-                  ? { usesLeft: f.result.usesLeft }
-                  : {})}
-                {...(f.result.deleteUrl !== undefined
-                  ? { deleteUrl: f.result.deleteUrl }
-                  : {})}
+                usesLeft={f.result.usesLeft}
+                deleteUrl={f.result.deleteUrl}
                 onReset={f.reset}
               />
             ) : (
@@ -340,7 +336,6 @@ function Home() {
           </div>
         </footer>
       </div>
-
     </>
   );
 }
@@ -433,8 +428,8 @@ function VoidResult({
   shortUrl: string;
   expiry: string;
   passwordProtected: boolean;
-  usesLeft?: number;
-  deleteUrl?: string;
+  usesLeft?: number | undefined;
+  deleteUrl?: string | undefined;
   onReset: () => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -442,16 +437,17 @@ function VoidResult({
   const [deleteCopied, setDeleteCopied] = useState(false);
   const [warned, setWarned] = useState(false);
   const [shaking, setShaking] = useState(false);
-  const qrRef = useRef<HTMLDivElement>(null);
+  const [qrSrc, setQrSrc] = useState<string | null>(null);
   const canShare =
     typeof navigator !== "undefined" && typeof navigator.share === "function";
 
+  // Render the QR as a JSX <img> sourced from a data URL — avoids
+  // assigning library-emitted HTML via innerHTML.
   useEffect(() => {
-    if (!qrRef.current) return;
     const qr = qrcode(0, "M");
     qr.addData(shortUrl);
     qr.make();
-    qrRef.current.innerHTML = qr.createImgTag(4, 2);
+    setQrSrc(qr.createDataURL(4, 2));
   }, [shortUrl]);
 
   return (
@@ -493,7 +489,9 @@ function VoidResult({
             {copied ? "Copied ✓" : "Copy"}
           </button>
         </div>
-        <div className="vp-qr" ref={qrRef} aria-label="QR code" />
+        <div className="vp-qr" aria-label="QR code">
+          {qrSrc ? <img src={qrSrc} alt="" /> : null}
+        </div>
       </div>
 
       <dl className="vp-meta">
