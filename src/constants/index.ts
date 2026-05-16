@@ -132,8 +132,7 @@ export const PER_ORIGIN_BUDGET_FRACTION: Readonly<Record<string, number>> = {
 // ─── API ──────────────────────────────────────────────────────────────────────
 
 export const API_BASE: string =
-  (import.meta.env?.VITE_API_BASE as string | undefined) ??
-  "/api/v1";
+  (import.meta.env?.VITE_API_BASE as string | undefined) ?? "/api/v1";
 
 // ─── Public source repository ─────────────────────────────────────────────────
 
@@ -218,7 +217,7 @@ export interface UsesLeftOption {
  */
 export const USES_LEFT_OPTIONS: readonly UsesLeftOption[] = [
   { value: undefined, label: "Unlimited (until expiry)" },
-  { value: 1, label: "Once (self-destruct on read)" },
+  { value: 1, label: "Once (self-destruct on redirect)" },
   { value: 3, label: "3 times" },
   { value: 10, label: "10 times" },
 ] as const;

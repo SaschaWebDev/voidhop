@@ -21,12 +21,19 @@ export function useShortenForm() {
   const [inputError, setInputError] = useState<string | null>(null);
   const [protect, setProtect] = useState(false);
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [usesLeft, setUsesLeft] = useState<number | undefined>(undefined);
   const create = useCreateLink();
 
   const isBusy = create.state === "encrypting" || create.state === "uploading";
+
+  const onProtectChange = (next: boolean) => {
+    setProtect(next);
+    if (!next) {
+      setPassword("");
+      setPasswordError(null);
+    }
+  };
 
   const submit = async () => {
     setInputError(null);
@@ -39,10 +46,6 @@ export function useShortenForm() {
     if (protect) {
       if (password.length === 0) {
         setPasswordError("Please enter a password.");
-        return false;
-      }
-      if (password !== confirmPassword) {
-        setPasswordError("Passwords do not match.");
         return false;
       }
     }
@@ -58,7 +61,6 @@ export function useShortenForm() {
     setUrl("");
     setProtect(false);
     setPassword("");
-    setConfirmPassword("");
     setPasswordError(null);
     setUsesLeft(undefined);
     create.reset();
@@ -84,11 +86,9 @@ export function useShortenForm() {
     setTtl,
     inputError,
     protect,
-    setProtect,
+    setProtect: onProtectChange,
     password,
     setPassword,
-    confirmPassword,
-    setConfirmPassword,
     passwordError,
     usesLeft,
     setUsesLeft,

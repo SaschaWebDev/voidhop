@@ -31,6 +31,12 @@ import {
   copyToClipboard,
   formatExpiry,
 } from "@/hooks/use-shorten-form";
+import {
+  PasswordCopyIcon,
+  PasswordEyeIcon,
+  PasswordRefreshIcon,
+  generatePassword,
+} from "@/components/password-input-icons";
 import { REPO_URL, TTL_OPTIONS, USES_LEFT_OPTIONS } from "@/constants";
 
 export const Route = createFileRoute("/")({
@@ -52,9 +58,13 @@ const vp = {
   mono: '"JetBrains Mono", "SF Mono", Menlo, monospace',
 };
 
+const COPY_FEEDBACK_MS = 1500;
+
 function Home() {
   const f = useShortenForm();
   const hopping = f.isBusy;
+  const [showPassword, setShowPassword] = useState(false);
+  const [pwCopied, setPwCopied] = useState(false);
 
   return (
     <>
@@ -100,19 +110,21 @@ function Home() {
             </div>
 
             <h1 className="vp-h1">
-              Toss it <span className="vp-h1-accent">into the void.</span>
+              Warp right <span className="vp-h1-accent">through the</span>
+              <br />
+              <span className="vp-h1-accent">void.</span>
             </h1>
 
             <p className="vp-lede">
-              Your URL is encrypted in the browser before it hops. The server
-              just receives data it cannot decrypt, and forgets it on expiry. No
-              logs. No accounts. Nothing watches.
+              Your short link takes you to your destination without anyone
+              knowing where you're going (even us). The URL is encrypted in your
+              local browser and deleted immediately. No accounts. No tracking.
+              Just void.
             </p>
 
             <ul className="vp-stats">
               {[
-                ["AES-256", "GCM"],
-                ["PBKDF2", "600k rounds"],
+                ["AES-256 GCM", "Military Grade Encryption"],
                 ["0 logs", "forever"],
               ].map(([a, b]) => (
                 <li key={a}>
@@ -147,16 +159,14 @@ function Home() {
                 }}
               >
                 <div className="vp-card-title">Shorten a link</div>
-                <div className="vp-card-sub">
-                  Your URL only known to you and secure.
-                </div>
+                <div className="vp-card-sub">Your URL is only known to you</div>
 
                 <VoidField label="destination">
                   <input
                     type="text"
                     inputMode="url"
                     className={`vp-input${f.url ? " on" : ""}`}
-                    placeholder="https://paste a url…"
+                    placeholder="https://yourdestination.com"
                     value={f.url}
                     onChange={(e) => f.onUrlChange(e.target.value)}
                     disabled={hopping}
@@ -224,24 +234,60 @@ function Home() {
 
                 {f.protect && (
                   <div className="vp-pwd">
-                    <input
-                      type="password"
-                      className="vp-input"
-                      placeholder="password"
-                      value={f.password}
-                      onChange={(e) => f.setPassword(e.target.value)}
-                      disabled={hopping}
-                      autoComplete="new-password"
-                    />
-                    <input
-                      type="password"
-                      className="vp-input"
-                      placeholder="confirm"
-                      value={f.confirmPassword}
-                      onChange={(e) => f.setConfirmPassword(e.target.value)}
-                      disabled={hopping}
-                      autoComplete="new-password"
-                    />
+                    <div className="vp-pwd-wrap">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        className="vp-pwd-input"
+                        placeholder="password"
+                        value={f.password}
+                        onChange={(e) => f.setPassword(e.target.value)}
+                        disabled={hopping}
+                        autoComplete="new-password"
+                      />
+                      <button
+                        type="button"
+                        className={`vp-pwd-btn${pwCopied ? " vp-pwd-btn-copied" : ""}`}
+                        onClick={async () => {
+                          if (pwCopied || f.password.length === 0) return;
+                          if (await copyToClipboard(f.password)) {
+                            setShowPassword(false);
+                            setPwCopied(true);
+                            window.setTimeout(
+                              () => setPwCopied(false),
+                              COPY_FEEDBACK_MS,
+                            );
+                          }
+                        }}
+                        title={pwCopied ? "copied" : "copy password"}
+                        tabIndex={-1}
+                        disabled={hopping || f.password.length === 0}
+                      >
+                        <PasswordCopyIcon copied={pwCopied} />
+                      </button>
+                      <button
+                        type="button"
+                        className="vp-pwd-btn"
+                        onClick={() => setShowPassword((v) => !v)}
+                        title={showPassword ? "hide password" : "show password"}
+                        tabIndex={-1}
+                        disabled={hopping || f.password.length === 0}
+                      >
+                        <PasswordEyeIcon shown={showPassword} />
+                      </button>
+                      <button
+                        type="button"
+                        className="vp-pwd-btn"
+                        onClick={() => {
+                          f.setPassword(generatePassword());
+                          setShowPassword(true);
+                        }}
+                        title="generate random password"
+                        tabIndex={-1}
+                        disabled={hopping}
+                      >
+                        <PasswordRefreshIcon />
+                      </button>
+                    </div>
                   </div>
                 )}
                 {f.passwordError && (
@@ -258,7 +304,7 @@ function Home() {
                     ? "Encrypting locally…"
                     : f.state === "uploading"
                       ? "Hopping…"
-                      : "Release into the void →"}
+                      : "Create Short Link"}
                 </button>
 
                 {f.errorMessage && (
@@ -363,6 +409,10 @@ function VoidResult({
   onReset: () => void;
 }) {
   const [copied, setCopied] = useState(false);
+  const [hasCopiedOnce, setHasCopiedOnce] = useState(false);
+  const [deleteCopied, setDeleteCopied] = useState(false);
+  const [warned, setWarned] = useState(false);
+  const [shaking, setShaking] = useState(false);
   const qrRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -382,7 +432,7 @@ function VoidResult({
         Done. <em>Here's your link.</em>
       </h2>
 
-      <div className="vp-result-url-row">
+      <div className={`vp-result-url-row${shaking ? " warn" : ""}`}>
         <span className="vp-result-url">{shortUrl}</span>
         <button
           type="button"
@@ -390,6 +440,7 @@ function VoidResult({
           onClick={async () => {
             if (await copyToClipboard(shortUrl)) {
               setCopied(true);
+              setHasCopiedOnce(true);
               window.setTimeout(() => setCopied(false), 1400);
             }
           }}
@@ -423,16 +474,42 @@ function VoidResult({
 
       {deleteUrl && (
         <div className="vp-revoke">
-          <div className="vp-revoke-label">
-            DELETE URL · save this for deletion
+          <div className="vp-revoke-text">
+            <div className="vp-revoke-label">
+              DELETE URL · save this for deletion
+            </div>
+            <code>{deleteUrl}</code>
           </div>
-          <code>{deleteUrl}</code>
+          <button
+            type="button"
+            className="vp-revoke-copy"
+            onClick={async () => {
+              if (await copyToClipboard(deleteUrl)) {
+                setDeleteCopied(true);
+                window.setTimeout(() => setDeleteCopied(false), 1400);
+              }
+            }}
+          >
+            {deleteCopied ? "Copied ✓" : "Copy"}
+          </button>
         </div>
       )}
 
       <div className="vp-result-foot">
         <div className="vp-qr" ref={qrRef} aria-label="QR code" />
-        <button type="button" className="vp-reset" onClick={onReset}>
+        <button
+          type="button"
+          className="vp-reset"
+          onClick={() => {
+            if (!hasCopiedOnce && !warned) {
+              setWarned(true);
+              setShaking(true);
+              window.setTimeout(() => setShaking(false), 500);
+              return;
+            }
+            onReset();
+          }}
+        >
           Shorten another link
         </button>
       </div>
@@ -850,7 +927,7 @@ const css = `
   font-size: clamp(15px, 1.7vw, 17px);
   line-height: 1.55;
   color: ${vp.inkDim};
-  max-width: 460px;
+  max-width: 430px;
   margin: 0;
   font-weight: 300;
 }
@@ -954,6 +1031,7 @@ const css = `
   border-color: ${vp.accent};
   box-shadow: 0 0 0 4px rgba(180, 120, 255, 0.12);
 }
+.vp-input:focus-visible { outline: none; }
 .vp-select {
   width: 100%;
   background: rgba(0, 0, 0, 0.3);
@@ -972,6 +1050,7 @@ const css = `
 .vp-select:focus {
   border-color: ${vp.accent};
 }
+.vp-select:focus-visible { outline: none; }
 .vp-select option {
   background: ${vp.bg};
   color: ${vp.ink};
@@ -991,7 +1070,7 @@ const css = `
   font-family: ${vp.sans};
   font-size: 13px;
   font-weight: 400;
-  transition: all 0.15s;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 .vp-ttl-btn:hover:not(:disabled) {
   border-color: rgba(180, 160, 255, 0.4);
@@ -999,7 +1078,7 @@ const css = `
 .vp-ttl-btn.on {
   background: linear-gradient(135deg, ${vp.accent}, ${vp.accent2});
   color: #0a0418;
-  border: none;
+  border: 1px solid transparent;
   font-weight: 600;
 }
 .vp-toggles {
@@ -1043,14 +1122,67 @@ const css = `
 }
 .vp-pwd {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 10px;
   margin: -4px 0 18px;
 }
-@media (max-width: 540px) {
-  .vp-pwd {
-    grid-template-columns: 1fr;
-  }
+.vp-pwd-wrap {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid ${vp.line};
+  border-radius: 10px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.vp-pwd-wrap:focus-within {
+  border-color: ${vp.accent};
+  box-shadow: 0 0 0 4px rgba(180, 120, 255, 0.12);
+}
+.vp-pwd-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 14px 16px;
+  color: ${vp.ink};
+  font-size: 15px;
+  font-family: ${vp.mono};
+}
+.vp-pwd-input::placeholder {
+  color: ${vp.inkFaint};
+}
+.vp-pwd-input:focus-visible { outline: none; }
+.vp-pwd-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  background: none;
+  border: none;
+  border-left: 1px solid ${vp.line};
+  color: ${vp.inkFaint};
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.vp-pwd-btn:hover:not(:disabled) {
+  color: ${vp.ink};
+}
+.vp-pwd-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.vp-pwd-btn-copied {
+  color: ${vp.accent};
+}
+.vp-pwd-btn-copied svg {
+  animation: vpPwCheckPop 0.25s ease-out;
+}
+@keyframes vpPwCheckPop {
+  0% { transform: scale(0.5); opacity: 0; }
+  60% { transform: scale(1.15); }
+  100% { transform: scale(1); opacity: 1; }
 }
 .vp-err-inline {
   margin-top: 10px;
@@ -1125,6 +1257,18 @@ const css = `
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  transition: border-color 0.2s;
+}
+@keyframes vpShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+.vp-result-url-row.warn {
+  border-color: #ff6b8a;
+  animation: vpShake 0.5s ease;
 }
 .vp-result-url {
   font-family: ${vp.mono};
@@ -1186,6 +1330,13 @@ const css = `
   padding: 10px 14px;
   margin-bottom: 22px;
   line-height: 1.6;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.vp-revoke-text {
+  flex: 1;
+  min-width: 0;
 }
 .vp-revoke-label {
   color: ${vp.inkFaint};
@@ -1196,6 +1347,22 @@ const css = `
 }
 .vp-revoke code {
   word-break: break-all;
+}
+.vp-revoke-copy {
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.05);
+  color: ${vp.ink};
+  border: 1px solid ${vp.line};
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-family: ${vp.sans};
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.vp-revoke-copy:hover {
+  border-color: ${vp.accent};
+  color: ${vp.accent2};
 }
 .vp-result-foot {
   display: flex;
