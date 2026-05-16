@@ -110,19 +110,21 @@ function Home() {
             </div>
 
             <h1 className="vp-h1">
-              Toss it <span className="vp-h1-accent">into the void.</span>
+              Warp right <span className="vp-h1-accent">through the</span>
+              <br />
+              <span className="vp-h1-accent">void.</span>
             </h1>
 
             <p className="vp-lede">
-              Your URL is encrypted in the browser before it hops. The server
-              just receives data it cannot decrypt, and forgets it on expiry. No
-              logs. No accounts. Nothing watches.
+              Your short link takes you to your destination without anyone
+              knowing where you're going (even us). The URL is encrypted in your
+              local browser and deleted immediately. No accounts. No tracking.
+              Just void.
             </p>
 
             <ul className="vp-stats">
               {[
-                ["AES-256", "GCM"],
-                ["PBKDF2", "600k rounds"],
+                ["AES-256 GCM", "Military Grade Encryption"],
                 ["0 logs", "forever"],
               ].map(([a, b]) => (
                 <li key={a}>
@@ -157,16 +159,14 @@ function Home() {
                 }}
               >
                 <div className="vp-card-title">Shorten a link</div>
-                <div className="vp-card-sub">
-                  Your URL only known to you and secure.
-                </div>
+                <div className="vp-card-sub">Your URL is only known to you</div>
 
                 <VoidField label="destination">
                   <input
                     type="text"
                     inputMode="url"
                     className={`vp-input${f.url ? " on" : ""}`}
-                    placeholder="https://paste a url…"
+                    placeholder="https://yourdestination.com"
                     value={f.url}
                     onChange={(e) => f.onUrlChange(e.target.value)}
                     disabled={hopping}
@@ -304,7 +304,7 @@ function Home() {
                     ? "Encrypting locally…"
                     : f.state === "uploading"
                       ? "Hopping…"
-                      : "Release into the void →"}
+                      : "Create Short Link"}
                 </button>
 
                 {f.errorMessage && (
@@ -927,7 +927,7 @@ const css = `
   font-size: clamp(15px, 1.7vw, 17px);
   line-height: 1.55;
   color: ${vp.inkDim};
-  max-width: 460px;
+  max-width: 430px;
   margin: 0;
   font-weight: 300;
 }
