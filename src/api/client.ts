@@ -24,7 +24,7 @@ interface ErrorBody {
   retryAfterMs?: number;
 }
 
-async function parseErrorBody(res: Response): Promise<{
+export async function parseErrorBody(res: Response): Promise<{
   code?: string;
   attemptsLeft?: number;
   retryAfterMs?: number;
@@ -84,7 +84,7 @@ function retryAfterFromHeader(res: Response): number | undefined {
   return Number.isNaN(parsed) ? undefined : parsed;
 }
 
-function mapErrorCode(code: string | undefined): ApiErrorType {
+export function mapErrorCode(code: string | undefined): ApiErrorType {
   switch (code) {
     case "RATE_LIMITED":
       return "RATE_LIMITED";
