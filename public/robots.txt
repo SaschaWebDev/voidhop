@@ -1,4 +1,7 @@
 User-agent: *
 Disallow: /api/
 Disallow: /__hopcheck
+Disallow: /delete/
 Allow: /
+
+Sitemap: https://voidhop.com/sitemap.xml

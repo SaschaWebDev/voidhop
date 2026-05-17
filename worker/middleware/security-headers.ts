@@ -17,11 +17,13 @@ import type { MiddlewareHandler } from "hono";
 //      and got surprising data back would still be contained.
 const CSP =
   "default-src 'self'; " +
-  "script-src 'self'; " +
+  "script-src 'self' 'sha256-cR67DeUg1WHrPlwzNohtJ3ZPPSbA0FCK3TLNIPHa2L8='; " +
   "style-src 'self' 'unsafe-inline'; " +
   "img-src 'self' data:; " +
   "connect-src 'self'; " +
   "font-src 'self' data:; " +
+  "worker-src 'self'; " +
+  "manifest-src 'self'; " +
   "object-src 'none'; " +
   "base-uri 'none'; " +
   "frame-ancestors 'none'; " +

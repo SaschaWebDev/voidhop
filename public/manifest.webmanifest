@@ -1,0 +1,39 @@
+{
+  "name": "VoidHop — Zero-knowledge URL shortener",
+  "short_name": "VoidHop",
+  "description": "Encrypts URLs client-side. The server stores only opaque ciphertext — no destinations, no keys, no logs.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#07050f",
+  "theme_color": "#0f172a",
+  "lang": "en",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    {
+      "src": "/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot-wide.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "VoidHop on desktop — paste a URL, get an encrypted short link."
+    },
+    {
+      "src": "/screenshot-narrow.png",
+      "sizes": "750x1334",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "VoidHop on mobile — same encryption, optimised for one hand."
+    }
+  ]
+}

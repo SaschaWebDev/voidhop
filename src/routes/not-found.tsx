@@ -1,10 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useDocumentHead } from "@/hooks/use-document-head";
 
 export const Route = createFileRoute("/not-found")({
   component: NotFoundPage,
 });
 
 function NotFoundPage() {
+  useDocumentHead({
+    title: "Page not found — VoidHop",
+    robots: "noindex,nofollow",
+  });
   return (
     <div className="card">
       <h1 className="card-title">Page not found</h1>

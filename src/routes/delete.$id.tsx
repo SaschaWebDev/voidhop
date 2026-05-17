@@ -15,6 +15,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { DELETION_TOKEN_B64URL_LENGTH } from "@/constants";
+import { useDocumentHead } from "@/hooks/use-document-head";
 import { deleteLink } from "@/api/client";
 import { ApiError } from "@/api/types";
 import { ErrorDisplay } from "@/components/error-display";
@@ -33,6 +34,10 @@ type DeleteState =
   | "network-error";
 
 function DeletePage() {
+  useDocumentHead({
+    title: "Delete link — VoidHop",
+    robots: "noindex,nofollow",
+  });
   const { id } = Route.useParams();
   const [state, setState] = useState<DeleteState>("loading");
   const tokenRef = useRef<string | null>(null);

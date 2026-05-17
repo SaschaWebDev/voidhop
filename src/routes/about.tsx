@@ -3,12 +3,19 @@
  */
 
 import { createFileRoute } from "@tanstack/react-router";
+import { useDocumentHead } from "@/hooks/use-document-head";
 
 export const Route = createFileRoute("/about")({
   component: AboutPage,
 });
 
 function AboutPage() {
+  useDocumentHead({
+    title: "How VoidHop protects your privacy — VoidHop",
+    description:
+      "How VoidHop's zero-knowledge URL shortener works: client-side AES-256-GCM, keys that live only in the URL fragment, and a deliberate list of what we cannot see.",
+    canonical: "https://voidhop.com/about",
+  });
   return (
     <article className="card about">
       <h1 className="card-title">How VoidHop protects your privacy</h1>
