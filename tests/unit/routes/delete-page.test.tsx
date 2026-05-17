@@ -78,56 +78,49 @@ describe("DeletePage", () => {
     ).toBeEnabled();
   });
 
-  it("clicking Delete permanently invokes deleteLink with id + token, then shows success", async () => {
+  /**
+   * Shared driver: set the fragment, render, click confirm. Returns
+   * after the click resolves so tests can assert the final screen.
+   */
+  async function runConfirmFlow(): Promise<void> {
     setHash(VALID_TOKEN);
-    vi.mocked(deleteLink).mockResolvedValueOnce(undefined);
     const user = userEvent.setup();
     render(<DeletePage />);
     await user.click(
       await screen.findByRole("button", { name: /Delete permanently/i }),
     );
+  }
+
+  it("clicking Delete permanently invokes deleteLink with id + token, then shows success", async () => {
+    vi.mocked(deleteLink).mockResolvedValueOnce(undefined);
+    await runConfirmFlow();
     expect(deleteLink).toHaveBeenCalledWith("abc123", VALID_TOKEN);
     expect(await screen.findByText("Link destroyed")).toBeInTheDocument();
   });
 
   it("shows the 'nothing to delete' state when the server returns NOT_FOUND", async () => {
-    setHash(VALID_TOKEN);
     vi.mocked(deleteLink).mockRejectedValueOnce(
       new ApiError("NOT_FOUND", "not found"),
     );
-    const user = userEvent.setup();
-    render(<DeletePage />);
-    await user.click(
-      await screen.findByRole("button", { name: /Delete permanently/i }),
-    );
+    await runConfirmFlow();
     expect(await screen.findByText("Nothing to delete.")).toBeInTheDocument();
   });
 
   it("shows the network-error state for any other ApiError type", async () => {
-    setHash(VALID_TOKEN);
     vi.mocked(deleteLink).mockRejectedValueOnce(
       new ApiError("SERVER_ERROR", "5xx"),
     );
-    const user = userEvent.setup();
-    render(<DeletePage />);
-    await user.click(
-      await screen.findByRole("button", { name: /Delete permanently/i }),
-    );
+    await runConfirmFlow();
     expect(
       await screen.findByText("Could not reach VoidHop."),
     ).toBeInTheDocument();
   });
 
   it("shows the network-error state for non-ApiError throwables", async () => {
-    setHash(VALID_TOKEN);
     vi.mocked(deleteLink).mockRejectedValueOnce(
       new TypeError("bare-network failure"),
     );
-    const user = userEvent.setup();
-    render(<DeletePage />);
-    await user.click(
-      await screen.findByRole("button", { name: /Delete permanently/i }),
-    );
+    await runConfirmFlow();
     expect(
       await screen.findByText("Could not reach VoidHop."),
     ).toBeInTheDocument();

@@ -13,6 +13,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { withClipboard } from "../../helpers/clipboard";
 
 vi.mock("qrcode-generator", () => ({
   default: () => ({
@@ -32,17 +33,6 @@ const baseProps = {
   passwordProtected: false,
   onReset: () => undefined,
 };
-
-function withClipboard(ok = true) {
-  const writeText = vi.fn(
-    ok ? () => Promise.resolve() : () => Promise.reject(new Error("denied")),
-  );
-  Object.defineProperty(navigator, "clipboard", {
-    configurable: true,
-    value: { writeText },
-  });
-  return writeText;
-}
 
 describe("ResultPanel", () => {
   it("renders title, short URL, expiry, and reset button", () => {

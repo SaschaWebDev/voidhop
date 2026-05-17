@@ -56,75 +56,57 @@ async function fetchMf(
 
 const SAMPLE_BLOB = "A".repeat(120); // valid base64url, fits in 1 KB tier
 
+/**
+ * POST a create-link body. Shared because every test in the POST
+ * describe block builds the same headers/origin/JSON shape — extracted
+ * to keep the focus on the body variation.
+ */
+async function postLink(
+  body: unknown,
+  origin = "https://voidhop.com",
+): Promise<Response> {
+  return fetchMf("/api/v1/links", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    origin,
+    body: JSON.stringify(body),
+  });
+}
+
+async function createAndGetId(): Promise<string> {
+  const res = await postLink({ blob: SAMPLE_BLOB, ttl: 3600 });
+  const { id } = (await res.json()) as { id: string };
+  return id;
+}
+
 describe("POST /api/v1/links", () => {
   it("creates a link with a valid body and returns 201 + id", async () => {
-    const res = await fetchMf("/api/v1/links", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      origin: "https://voidhop.com",
-      body: JSON.stringify({ blob: SAMPLE_BLOB, ttl: 3600 }),
-    });
+    const res = await postLink({ blob: SAMPLE_BLOB, ttl: 3600 });
     expect(res.status).toBe(201);
     const body = (await res.json()) as { id: string };
     expect(body.id).toMatch(/^[A-Za-z0-9_-]{8}$/);
   });
 
   it("rejects an invalid blob with 400 INVALID_BLOB", async () => {
-    const res = await fetchMf("/api/v1/links", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      origin: "https://voidhop.com",
-      body: JSON.stringify({ blob: "not!valid", ttl: 3600 }),
-    });
+    const res = await postLink({ blob: "not!valid", ttl: 3600 });
     expect(res.status).toBe(400);
     const body = (await res.json()) as { error: string };
     expect(body.error).toBe("INVALID_BLOB");
   });
 
   it("rejects an oversized blob with 400 BLOB_TOO_LARGE", async () => {
-    const res = await fetchMf("/api/v1/links", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      origin: "https://voidhop.com",
-      body: JSON.stringify({ blob: "A".repeat(400_000), ttl: 3600 }),
-    });
+    const res = await postLink({ blob: "A".repeat(400_000), ttl: 3600 });
     expect(res.status).toBe(400);
     const body = (await res.json()) as { error: string };
     expect(body.error).toBe("BLOB_TOO_LARGE");
   });
 
-  it("rejects an invalid TTL with 400 INVALID_TTL", async () => {
-    const res = await fetchMf("/api/v1/links", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      origin: "https://voidhop.com",
-      body: JSON.stringify({ blob: SAMPLE_BLOB, ttl: 12345 }),
-    });
-    expect(res.status).toBe(400);
-    const body = (await res.json()) as { error: string };
-    expect(body.error).toBe("INVALID_TTL");
-  });
-
-  it("rejects a TTL larger than the universal 7-day cap (e.g., 30 days)", async () => {
-    // 30 days = 2592000 — used to be a valid TTL in v1.0/v1.1.0; rejected in v1.1.1.
-    const res = await fetchMf("/api/v1/links", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      origin: "https://voidhop.com",
-      body: JSON.stringify({ blob: SAMPLE_BLOB, ttl: 2592000 }),
-    });
-    expect(res.status).toBe(400);
-    const body = (await res.json()) as { error: string };
-    expect(body.error).toBe("INVALID_TTL");
-  });
-
-  it("rejects a TTL of 1 year (formerly valid in v1.0)", async () => {
-    const res = await fetchMf("/api/v1/links", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      origin: "https://voidhop.com",
-      body: JSON.stringify({ blob: SAMPLE_BLOB, ttl: 31536000 }),
-    });
+  it.each([
+    ["1 day off the allow-list", 12345],
+    ["30 days (formerly valid in v1.0/v1.1.0; rejected in v1.1.1)", 2592000],
+    ["1 year (formerly valid in v1.0)", 31536000],
+  ])("rejects out-of-allow-list TTL: %s → 400 INVALID_TTL", async (_, ttl) => {
+    const res = await postLink({ blob: SAMPLE_BLOB, ttl });
     expect(res.status).toBe(400);
     const body = (await res.json()) as { error: string };
     expect(body.error).toBe("INVALID_TTL");
@@ -135,14 +117,7 @@ describe("GET /api/v1/links/:id", () => {
   let createdId: string;
 
   beforeAll(async () => {
-    const res = await fetchMf("/api/v1/links", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      origin: "https://voidhop.com",
-      body: JSON.stringify({ blob: SAMPLE_BLOB, ttl: 3600 }),
-    });
-    const body = (await res.json()) as { id: string };
-    createdId = body.id;
+    createdId = await createAndGetId();
   });
 
   it("returns 200 + blob for an existing ID", async () => {
@@ -167,13 +142,7 @@ describe("GET /api/v1/links/:id", () => {
 
 describe("DELETE /api/v1/links/:id", () => {
   it("returns 204 on successful delete and 404 on subsequent GET", async () => {
-    const create = await fetchMf("/api/v1/links", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      origin: "https://voidhop.com",
-      body: JSON.stringify({ blob: SAMPLE_BLOB, ttl: 3600 }),
-    });
-    const { id } = (await create.json()) as { id: string };
+    const id = await createAndGetId();
 
     const del = await fetchMf(`/api/v1/links/${id}`, { method: "DELETE" });
     expect(del.status).toBe(204);
@@ -190,13 +159,7 @@ describe("DELETE /api/v1/links/:id", () => {
 
 describe("HEAD /api/v1/links/:id", () => {
   it("returns 200 if the link exists, 404 otherwise", async () => {
-    const create = await fetchMf("/api/v1/links", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      origin: "https://voidhop.com",
-      body: JSON.stringify({ blob: SAMPLE_BLOB, ttl: 3600 }),
-    });
-    const { id } = (await create.json()) as { id: string };
+    const id = await createAndGetId();
 
     const exists = await fetchMf(`/api/v1/links/${id}`, { method: "HEAD" });
     expect(exists.status).toBe(200);

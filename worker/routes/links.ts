@@ -552,52 +552,7 @@ export function mountLinksRoutes(app: Hono<HonoEnv>): void {
       windowMs: 60 * 1000, // 1 minute
       limit: 60,
     }),
-    async (c) => {
-      const id = c.req.param("id");
-      if (!isValidId(id)) {
-        // Item 17: collapse 400 into 404 to defeat enumeration.
-        return c.json({ error: "NOT_FOUND" }, 404);
-      }
-      const store = new CloudflareKVLinkStore(c.env.VOIDHOP_KV);
-      const record = await store.get(id);
-      if (record === null) {
-        return c.json({ error: "NOT_FOUND" }, 404);
-      }
-      // V2 (password-protected): withhold the blob; client must POST to
-      // /unlock with a valid verifier to receive it. Return the current
-      // attemptsLeft and (if set) usesLeft so the UI shows the real
-      // remaining counts instead of a stale client-side initial guess.
-      if (record.version === 2) {
-        return c.json(
-          {
-            protected: true,
-            attemptsLeft: record.attemptsLeft,
-            ...(record.usesLeft !== undefined
-              ? { usesLeft: record.usesLeft }
-              : {}),
-          },
-          200,
-        );
-      }
-      // V1 (open read). If a multi-use counter is set, decrement it in KV
-      // BEFORE returning the blob. Decrement-first means a lost KV write
-      // may cost the user a retry but never hands out extra uses.
-      if (record.usesLeft !== undefined) {
-        const remaining = record.usesLeft - 1;
-        try {
-          if (remaining <= 0) {
-            await store.delete(id);
-          } else {
-            await store.update(id, { ...record, usesLeft: remaining }, record.ttl);
-          }
-        } catch {
-          // If the counter write failed, return NOT_FOUND rather than the
-          // blob so we don't quietly hand out extra uses.
-          return c.json({ error: "NOT_FOUND" }, 404);
-        }
-      }
-      return c.json({ blob: record.blob }, 200);
-    },
+    handleGetLink,
   );
 
   // HEAD /api/v1/links/:id — existence check.
@@ -609,13 +564,7 @@ export function mountLinksRoutes(app: Hono<HonoEnv>): void {
       windowMs: 60 * 1000,
       limit: 60,
     }),
-    async (c) => {
-      const id = c.req.param("id");
-      if (!isValidId(id)) return new Response(null, { status: 404 });
-      const store = new CloudflareKVLinkStore(c.env.VOIDHOP_KV);
-      const exists = await store.exists(id);
-      return new Response(null, { status: exists ? 200 : 404 });
-    },
+    handleHeadLink,
   );
 
   // POST /api/v1/links/:id/unlock — verifier check for v2 protected links.
@@ -635,36 +584,7 @@ export function mountLinksRoutes(app: Hono<HonoEnv>): void {
       windowMs: 60 * 1000,
       limit: 20,
     }),
-    async (c) => {
-      const id = c.req.param("id");
-      if (!isValidId(id)) return c.json({ error: "NOT_FOUND" }, 404);
-
-      const parsed = await parseJsonObject(c);
-      if (!parsed.ok) return c.json({ error: "INVALID_VERIFIER" }, 400);
-      const submitted = parsed.obj.verifier;
-      if (!isValidVerifier(submitted)) {
-        return c.json({ error: "INVALID_VERIFIER" }, 400);
-      }
-
-      const store = new CloudflareKVLinkStore(c.env.VOIDHOP_KV);
-      const record = await store.get(id);
-      // Unlock only makes sense for v2. v1 at this endpoint is a client bug —
-      // respond 404 so the attack surface stays uniform with "no such link".
-      if (record === null || record.version !== 2) {
-        return c.json({ error: "NOT_FOUND" }, 404);
-      }
-
-      const now = Date.now();
-      const backoff = checkBackoffGate(record, now);
-      if (backoff !== null) {
-        return c.json(backoff.body, 429, backoff.headers);
-      }
-
-      if (constantTimeEqual(submitted, record.verifier)) {
-        return handleMatch(c, store, id, record);
-      }
-      return handleMiss(c, store, id, record, now);
-    },
+    handleUnlockLink,
   );
 
   // DELETE /api/v1/links/:id — creator-initiated destruction via token.
@@ -680,43 +600,152 @@ export function mountLinksRoutes(app: Hono<HonoEnv>): void {
       windowMs: 60 * 1000,
       limit: 10,
     }),
-    async (c) => {
-      const id = c.req.param("id");
-      if (!isValidId(id)) return c.json({ error: "NOT_FOUND" }, 404);
-
-      const parsed = await parseJsonObject(c);
-      if (!parsed.ok) {
-        return c.json({ error: "INVALID_DELETION_TOKEN" }, 400);
-      }
-      const submittedToken = parsed.obj.token;
-      if (!isBase64UrlString(submittedToken, DELETION_TOKEN_B64URL_LENGTH)) {
-        return c.json({ error: "INVALID_DELETION_TOKEN" }, 400);
-      }
-
-      const store = new CloudflareKVLinkStore(c.env.VOIDHOP_KV);
-      const record = await store.get(id);
-      if (record === null) {
-        return c.json({ error: "NOT_FOUND" }, 404);
-      }
-      if (record.deletionTokenHash === undefined) {
-        // No deletion token was registered — this link is not creator-deletable.
-        // Collapse to 404 so we don't leak the distinction from "no such link".
-        return c.json({ error: "NOT_FOUND" }, 404);
-      }
-
-      // Recompute SHA-256(submitted_token) and constant-time compare.
-      const submittedHash = await sha256Base64Url(submittedToken);
-      if (!constantTimeEqual(submittedHash, record.deletionTokenHash)) {
-        // Wrong token. Return 404 to keep the attack surface uniform with
-        // "no such record" — no brute-forcing acceleration from distinct
-        // error codes.
-        return c.json({ error: "NOT_FOUND" }, 404);
-      }
-
-      await store.delete(id);
-      return new Response(null, { status: 204 });
-    },
+    handleDeleteLink,
   );
+}
+
+/**
+ * GET handler body — exported for the unit suite. Returns the blob for
+ * v1 records (decrementing the multi-use counter first if present),
+ * the `protected: true` marker for v2, or NOT_FOUND on invalid id /
+ * missing record.
+ */
+export async function handleGetLink(c: Context<HonoEnv>): Promise<Response> {
+  const id = c.req.param("id") ?? "";
+  if (!isValidId(id)) {
+    // Item 17: collapse 400 into 404 to defeat enumeration.
+    return c.json({ error: "NOT_FOUND" }, 404);
+  }
+  const store = new CloudflareKVLinkStore(c.env.VOIDHOP_KV);
+  const record = await store.get(id);
+  if (record === null) {
+    return c.json({ error: "NOT_FOUND" }, 404);
+  }
+  // V2 (password-protected): withhold the blob; client must POST to
+  // /unlock with a valid verifier to receive it. Return the current
+  // attemptsLeft and (if set) usesLeft so the UI shows the real
+  // remaining counts instead of a stale client-side initial guess.
+  if (record.version === 2) {
+    return c.json(
+      {
+        protected: true,
+        attemptsLeft: record.attemptsLeft,
+        ...(record.usesLeft !== undefined
+          ? { usesLeft: record.usesLeft }
+          : {}),
+      },
+      200,
+    );
+  }
+  // V1 (open read). If a multi-use counter is set, decrement it in KV
+  // BEFORE returning the blob. Decrement-first means a lost KV write
+  // may cost the user a retry but never hands out extra uses.
+  if (record.usesLeft !== undefined) {
+    const remaining = record.usesLeft - 1;
+    try {
+      if (remaining <= 0) {
+        await store.delete(id);
+      } else {
+        await store.update(id, { ...record, usesLeft: remaining }, record.ttl);
+      }
+    } catch {
+      // If the counter write failed, return NOT_FOUND rather than the
+      // blob so we don't quietly hand out extra uses.
+      return c.json({ error: "NOT_FOUND" }, 404);
+    }
+  }
+  return c.json({ blob: record.blob }, 200);
+}
+
+/** HEAD handler body — exists/doesn't-exist as 200/404 with no body. */
+export async function handleHeadLink(c: Context<HonoEnv>): Promise<Response> {
+  const id = c.req.param("id") ?? "";
+  if (!isValidId(id)) return new Response(null, { status: 404 });
+  const store = new CloudflareKVLinkStore(c.env.VOIDHOP_KV);
+  const exists = await store.exists(id);
+  return new Response(null, { status: exists ? 200 : 404 });
+}
+
+/**
+ * UNLOCK handler body — verifier check + backoff gate. Delegates the
+ * match / miss arms to {@link handleMatch} / {@link handleMiss}.
+ */
+export async function handleUnlockLink(
+  c: Context<HonoEnv>,
+): Promise<Response> {
+  const id = c.req.param("id") ?? "";
+  if (!isValidId(id)) return c.json({ error: "NOT_FOUND" }, 404);
+
+  const parsed = await parseJsonObject(c);
+  if (!parsed.ok) return c.json({ error: "INVALID_VERIFIER" }, 400);
+  const submitted = parsed.obj.verifier;
+  if (!isValidVerifier(submitted)) {
+    return c.json({ error: "INVALID_VERIFIER" }, 400);
+  }
+
+  const store = new CloudflareKVLinkStore(c.env.VOIDHOP_KV);
+  const record = await store.get(id);
+  // Unlock only makes sense for v2. v1 at this endpoint is a client bug —
+  // respond 404 so the attack surface stays uniform with "no such link".
+  if (record === null || record.version !== 2) {
+    return c.json({ error: "NOT_FOUND" }, 404);
+  }
+
+  const now = Date.now();
+  const backoff = checkBackoffGate(record, now);
+  if (backoff !== null) {
+    return c.json(backoff.body, 429, backoff.headers);
+  }
+
+  if (constantTimeEqual(submitted, record.verifier)) {
+    return handleMatch(c, store, id, record);
+  }
+  return handleMiss(c, store, id, record, now);
+}
+
+/**
+ * DELETE handler body — re-hashes the submitted token and constant-time
+ * compares against the stored hash. All miss cases (no record, no
+ * deletion-token registered, wrong token) collapse to NOT_FOUND so the
+ * attack surface is uniform.
+ */
+export async function handleDeleteLink(
+  c: Context<HonoEnv>,
+): Promise<Response> {
+  const id = c.req.param("id") ?? "";
+  if (!isValidId(id)) return c.json({ error: "NOT_FOUND" }, 404);
+
+  const parsed = await parseJsonObject(c);
+  if (!parsed.ok) {
+    return c.json({ error: "INVALID_DELETION_TOKEN" }, 400);
+  }
+  const submittedToken = parsed.obj.token;
+  if (!isBase64UrlString(submittedToken, DELETION_TOKEN_B64URL_LENGTH)) {
+    return c.json({ error: "INVALID_DELETION_TOKEN" }, 400);
+  }
+
+  const store = new CloudflareKVLinkStore(c.env.VOIDHOP_KV);
+  const record = await store.get(id);
+  if (record === null) {
+    return c.json({ error: "NOT_FOUND" }, 404);
+  }
+  if (record.deletionTokenHash === undefined) {
+    // No deletion token was registered — this link is not creator-deletable.
+    // Collapse to 404 so we don't leak the distinction from "no such link".
+    return c.json({ error: "NOT_FOUND" }, 404);
+  }
+
+  // Recompute SHA-256(submitted_token) and constant-time compare.
+  const submittedHash = await sha256Base64Url(submittedToken);
+  if (!constantTimeEqual(submittedHash, record.deletionTokenHash)) {
+    // Wrong token. Return 404 to keep the attack surface uniform with
+    // "no such record" — no brute-forcing acceleration from distinct
+    // error codes.
+    return c.json({ error: "NOT_FOUND" }, 404);
+  }
+
+  await store.delete(id);
+  return new Response(null, { status: 204 });
 }
 
 /** Base64-url length of the raw deletion token — keep in sync with

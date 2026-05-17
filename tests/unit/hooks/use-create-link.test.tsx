@@ -13,7 +13,12 @@
 
 import "@testing-library/jest-dom/vitest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, renderHook, waitFor } from "@testing-library/react";
+import {
+  act,
+  renderHook,
+  waitFor,
+  type RenderHookResult,
+} from "@testing-library/react";
 import { CryptoError } from "@/crypto";
 import { ApiError } from "@/api/types";
 
@@ -38,20 +43,64 @@ import {
   generateDeletionToken,
 } from "@/crypto";
 import { createLink } from "@/api/client";
-import { useCreateLink } from "@/hooks/use-create-link";
+import {
+  useCreateLink,
+  type CreateLinkOptions,
+  type UseCreateLinkResult,
+} from "@/hooks/use-create-link";
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // jsdom-style URL setup — we need window.location.origin in
-  // buildShortLinkResult. happy-dom default is "http://localhost:3000".
   vi.mocked(generateDeletionToken).mockResolvedValue({
     tokenB64url: "T".repeat(43),
     hashB64url: "H".repeat(43),
   });
 });
 
-// No restoreAllMocks — vi.mock() factories should survive between tests;
-// `clearAllMocks` in beforeEach resets call history, which is what we need.
+// ─── shared fixtures ──────────────────────────────────────────────────────────
+
+const KEY = "K".repeat(43);
+
+function mockV1Encrypt() {
+  vi.mocked(encryptUrl).mockResolvedValueOnce({ blob: "BLOB", keyB64url: KEY });
+}
+
+function mockV2Encrypt() {
+  vi.mocked(encryptUrlWithPassword).mockResolvedValueOnce({
+    blob: "BLOB",
+    keyB64url: KEY,
+    saltB64url: "S".repeat(22),
+    verifierB64url: "V".repeat(43),
+  });
+}
+
+function mockCreateOk(id = "abc") {
+  vi.mocked(createLink).mockResolvedValueOnce({ id });
+}
+
+type HookResult = RenderHookResult<UseCreateLinkResult, unknown>["result"];
+
+/**
+ * Render the hook and run `mutate(...)` inside `act`. Returns the live
+ * result object so the test can read `current.state` etc. afterwards.
+ */
+async function runMutate(
+  url: string,
+  ttlSeconds: number,
+  options?: CreateLinkOptions,
+): Promise<HookResult> {
+  const { result } = renderHook(() => useCreateLink());
+  await act(async () => {
+    await result.current.mutate(url, ttlSeconds, options);
+  });
+  return result;
+}
+
+async function expectSuccess(result: HookResult): Promise<void> {
+  await waitFor(() => expect(result.current.state).toBe("success"));
+}
+
+// ─── tests ────────────────────────────────────────────────────────────────────
 
 describe("useCreateLink", () => {
   it("idle is the initial state with no result or error", () => {
@@ -62,67 +111,39 @@ describe("useCreateLink", () => {
   });
 
   it("v1 happy path: encrypts, uploads, transitions to success, builds the URL", async () => {
-    vi.mocked(encryptUrl).mockResolvedValueOnce({
-      blob: "BLOB",
-      keyB64url: "K".repeat(43),
-    });
-    vi.mocked(createLink).mockResolvedValueOnce({ id: "abc" });
-
-    const { result } = renderHook(() => useCreateLink());
-    await act(async () => {
-      await result.current.mutate("https://x.test", 3600);
-    });
-
-    await waitFor(() => expect(result.current.state).toBe("success"));
-    expect(result.current.result).not.toBeNull();
+    mockV1Encrypt();
+    mockCreateOk();
+    const result = await runMutate("https://x.test", 3600);
+    await expectSuccess(result);
     expect(result.current.result!.shortUrl).toMatch(/\/abc#/);
-    expect(result.current.result!.shortUrl).toContain("K".repeat(43));
+    expect(result.current.result!.shortUrl).toContain(KEY);
     expect(result.current.result!.passwordProtected).toBe(false);
     expect(result.current.result!.ttlSeconds).toBe(3600);
     expect(encryptUrlWithPassword).not.toHaveBeenCalled();
   });
 
-  it("v2 happy path: with a password, calls encryptUrlWithPassword and embeds salt", async () => {
-    vi.mocked(encryptUrlWithPassword).mockResolvedValueOnce({
-      blob: "BLOB",
-      keyB64url: "K".repeat(43),
-      saltB64url: "S".repeat(22),
-      verifierB64url: "V".repeat(43),
+  it("v2 happy path: with a password, uses encryptUrlWithPassword and embeds salt", async () => {
+    mockV2Encrypt();
+    mockCreateOk();
+    const result = await runMutate("https://x.test", 3600, {
+      password: "hunter2",
     });
-    vi.mocked(createLink).mockResolvedValueOnce({ id: "abc" });
-
-    const { result } = renderHook(() => useCreateLink());
-    await act(async () => {
-      await result.current.mutate("https://x.test", 3600, {
-        password: "hunter2",
-      });
-    });
-    await waitFor(() => expect(result.current.state).toBe("success"));
-    expect(result.current.result!.shortUrl).toContain(
-      `${"K".repeat(43)}.${"S".repeat(22)}`,
-    );
+    await expectSuccess(result);
+    expect(result.current.result!.shortUrl).toContain(`${KEY}.${"S".repeat(22)}`);
     expect(result.current.result!.passwordProtected).toBe(true);
     expect(encryptUrl).not.toHaveBeenCalled();
-    // createLink must receive the verifier on the v2 path.
     expect(vi.mocked(createLink).mock.calls[0]?.[0]).toMatchObject({
       verifier: "V".repeat(43),
     });
   });
 
-  it("with includeDeletionToken: includes the hash in the request body and the token in the result URL", async () => {
-    vi.mocked(encryptUrl).mockResolvedValueOnce({
-      blob: "BLOB",
-      keyB64url: "K".repeat(43),
+  it("with includeDeletionToken: hash goes to the body and token into the result URL", async () => {
+    mockV1Encrypt();
+    mockCreateOk();
+    const result = await runMutate("https://x.test", 3600, {
+      includeDeletionToken: true,
     });
-    vi.mocked(createLink).mockResolvedValueOnce({ id: "abc" });
-
-    const { result } = renderHook(() => useCreateLink());
-    await act(async () => {
-      await result.current.mutate("https://x.test", 3600, {
-        includeDeletionToken: true,
-      });
-    });
-    await waitFor(() => expect(result.current.state).toBe("success"));
+    await expectSuccess(result);
     expect(vi.mocked(createLink).mock.calls[0]?.[0]).toMatchObject({
       deletionTokenHash: "H".repeat(43),
     });
@@ -131,31 +152,20 @@ describe("useCreateLink", () => {
     );
   });
 
-  it("a CryptoError during encrypt transitions to error and surfaces the error", async () => {
+  it("a CryptoError during encrypt transitions to error and surfaces it", async () => {
     const err = new CryptoError("URL_TOO_LONG", "x");
     vi.mocked(encryptUrl).mockRejectedValueOnce(err);
-
-    const { result } = renderHook(() => useCreateLink());
-    await act(async () => {
-      await result.current.mutate("https://x.test", 3600);
-    });
+    const result = await runMutate("https://x.test", 3600);
     expect(result.current.state).toBe("error");
     expect(result.current.error).toBe(err);
     expect(createLink).not.toHaveBeenCalled();
   });
 
-  it("an ApiError during upload transitions to error and surfaces the error", async () => {
-    vi.mocked(encryptUrl).mockResolvedValueOnce({
-      blob: "BLOB",
-      keyB64url: "K".repeat(43),
-    });
+  it("an ApiError during upload transitions to error and surfaces it", async () => {
+    mockV1Encrypt();
     const err = new ApiError("RATE_LIMITED", "slow down");
     vi.mocked(createLink).mockRejectedValueOnce(err);
-
-    const { result } = renderHook(() => useCreateLink());
-    await act(async () => {
-      await result.current.mutate("https://x.test", 3600);
-    });
+    const result = await runMutate("https://x.test", 3600);
     expect(result.current.state).toBe("error");
     expect(result.current.error).toBe(err);
   });
@@ -175,16 +185,10 @@ describe("useCreateLink", () => {
   });
 
   it("reset() clears state, result, and error", async () => {
-    vi.mocked(encryptUrl).mockResolvedValueOnce({
-      blob: "BLOB",
-      keyB64url: "K".repeat(43),
-    });
-    vi.mocked(createLink).mockResolvedValueOnce({ id: "abc" });
-    const { result } = renderHook(() => useCreateLink());
-    await act(async () => {
-      await result.current.mutate("https://x.test", 3600);
-    });
-    await waitFor(() => expect(result.current.state).toBe("success"));
+    mockV1Encrypt();
+    mockCreateOk();
+    const result = await runMutate("https://x.test", 3600);
+    await expectSuccess(result);
     act(() => result.current.reset());
     expect(result.current.state).toBe("idle");
     expect(result.current.result).toBeNull();
@@ -192,16 +196,10 @@ describe("useCreateLink", () => {
   });
 
   it("passes usesLeft through to createLink and into the result", async () => {
-    vi.mocked(encryptUrl).mockResolvedValueOnce({
-      blob: "BLOB",
-      keyB64url: "K".repeat(43),
-    });
-    vi.mocked(createLink).mockResolvedValueOnce({ id: "abc" });
-    const { result } = renderHook(() => useCreateLink());
-    await act(async () => {
-      await result.current.mutate("https://x", 3600, { usesLeft: 3 });
-    });
-    await waitFor(() => expect(result.current.state).toBe("success"));
+    mockV1Encrypt();
+    mockCreateOk();
+    const result = await runMutate("https://x", 3600, { usesLeft: 3 });
+    await expectSuccess(result);
     expect(vi.mocked(createLink).mock.calls[0]?.[0]).toMatchObject({
       usesLeft: 3,
     });

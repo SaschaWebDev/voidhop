@@ -34,23 +34,37 @@ describe("pickBucket", () => {
 });
 
 describe("length-prefix padding", () => {
+  /**
+   * Assert the first 4 bytes encode `length` as big-endian uint32. The
+   * empty-input case (length 0) and the small-payload case share this
+   * check; extracted so the byte indices aren't repeated.
+   */
+  function expectLengthHeader(out: Uint8Array, length: number): void {
+    expect(out[0]).toBe((length >>> 24) & 0xff);
+    expect(out[1]).toBe((length >>> 16) & 0xff);
+    expect(out[2]).toBe((length >>> 8) & 0xff);
+    expect(out[3]).toBe(length & 0xff);
+  }
+
+  /** Build, pad, unpad, assert round-trip equality. */
+  function expectRoundTrip(input: Uint8Array, bucket: number): void {
+    const padded = padBytesLengthPrefix(input, bucket);
+    expect(padded.length).toBe(bucket);
+    const recovered = unpadBytesLengthPrefix(padded);
+    expect(Array.from(recovered)).toEqual(Array.from(input));
+  }
+
   it("pads empty input to a 1024-byte zero buffer", () => {
     const out = padBytesLengthPrefix(new Uint8Array(0), 1024);
     expect(out.length).toBe(1024);
-    expect(out[0]).toBe(0);
-    expect(out[1]).toBe(0);
-    expect(out[2]).toBe(0);
-    expect(out[3]).toBe(0);
+    expectLengthHeader(out, 0);
     for (let i = 4; i < 1024; i++) expect(out[i]).toBe(0);
   });
 
   it("encodes the length as big-endian uint32", () => {
     const input = new Uint8Array([0xaa, 0xbb, 0xcc]);
     const out = padBytesLengthPrefix(input, 1024);
-    expect(out[0]).toBe(0);
-    expect(out[1]).toBe(0);
-    expect(out[2]).toBe(0);
-    expect(out[3]).toBe(3);
+    expectLengthHeader(out, 3);
     expect(out[4]).toBe(0xaa);
     expect(out[5]).toBe(0xbb);
     expect(out[6]).toBe(0xcc);
@@ -63,11 +77,7 @@ describe("length-prefix padding", () => {
     for (const len of sizes) {
       const input = new Uint8Array(len);
       for (let i = 0; i < len; i++) input[i] = (i * 13 + 5) & 0xff;
-      const bucket = pickBucket(len);
-      const padded = padBytesLengthPrefix(input, bucket);
-      expect(padded.length).toBe(bucket);
-      const recovered = unpadBytesLengthPrefix(padded);
-      expect(Array.from(recovered)).toEqual(Array.from(input));
+      expectRoundTrip(input, pickBucket(len));
     }
   });
 
@@ -75,10 +85,7 @@ describe("length-prefix padding", () => {
     const input = new Uint8Array([
       0x68, 0x74, 0x74, 0x70, 0x73, 0x3a, 0x2f, 0x2f, 0x01, 0x00, 0x00,
     ]);
-    const bucket = pickBucket(input.length);
-    const padded = padBytesLengthPrefix(input, bucket);
-    const recovered = unpadBytesLengthPrefix(padded);
-    expect(Array.from(recovered)).toEqual(Array.from(input));
+    expectRoundTrip(input, pickBucket(input.length));
   });
 
   it("padBytesLengthPrefix throws UrlTooLongError when the header + plaintext won't fit", () => {
@@ -107,10 +114,7 @@ describe("length-prefix padding", () => {
       const maxLen = bucket - 4;
       const input = new Uint8Array(maxLen);
       for (let i = 0; i < maxLen; i++) input[i] = i & 0xff;
-      const padded = padBytesLengthPrefix(input, bucket);
-      expect(padded.length).toBe(bucket);
-      const recovered = unpadBytesLengthPrefix(padded);
-      expect(Array.from(recovered)).toEqual(Array.from(input));
+      expectRoundTrip(input, bucket);
     }
   });
 });

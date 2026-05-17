@@ -56,18 +56,13 @@ describe("handleUnhandledError", () => {
     expect(flat).toMatch(/fake\.ts/);
   });
 
-  it("handles non-Error throwables (string/object) without crashing", async () => {
-    const ctxA = makeCtx("GET", "https://x/y");
-    const resA = handleUnhandledError("a string thrown", ctxA);
-    expect(resA.status).toBe(500);
-    expect(await resA.json()).toEqual({ error: "SERVER_ERROR" });
-
-    const ctxB = makeCtx("GET", "https://x/y");
-    const resB = handleUnhandledError({ foo: 1 }, ctxB);
-    expect(resB.status).toBe(500);
-    expect(await resB.json()).toEqual({ error: "SERVER_ERROR" });
-
-    // Non-Error throwables log under "UnknownError".
+  it.each<[string, unknown]>([
+    ["string", "a string thrown"],
+    ["plain object", { foo: 1 }],
+  ])("handles non-Error throwable (%s) — 500 + UnknownError log", async (_label, thrown) => {
+    const res = handleUnhandledError(thrown, makeCtx("GET", "https://x/y"));
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "SERVER_ERROR" });
     const flat = errorSpy.mock.calls.map((c) => c.join(" ")).join("\n");
     expect(flat).toMatch(/UnknownError/);
   });

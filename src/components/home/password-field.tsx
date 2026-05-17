@@ -1,14 +1,11 @@
-import { useState } from "react";
 import {
   PasswordCopyIcon,
   PasswordEyeIcon,
   PasswordRefreshIcon,
 } from "@/components/icons";
-import { copyToClipboard } from "@/hooks/use-shorten-form";
+import { usePasswordCopy } from "@/hooks/use-password-copy";
 import { generatePassword } from "@/utils/generate-password";
 import styles from "@/routes/index.module.css";
-
-const COPY_FEEDBACK_MS = 1500;
 
 interface PasswordFieldProps {
   value: string;
@@ -30,23 +27,11 @@ export function PasswordField({
   onChange,
   disabled,
 }: PasswordFieldProps) {
-  const [showPassword, setShowPassword] = useState(false);
-  const [copied, setCopied] = useState(false);
-
-  const onCopy = async () => {
-    if (copied || value.length === 0) return;
-    if (await copyToClipboard(value)) {
-      setShowPassword(false);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), COPY_FEEDBACK_MS);
-    }
-  };
-
-  const onToggle = () => setShowPassword((v) => !v);
+  const { showPassword, copied, toggleShow, reveal, onCopy } = usePasswordCopy();
 
   const onGenerate = () => {
     onChange(generatePassword());
-    setShowPassword(true);
+    reveal();
   };
 
   return (
@@ -64,7 +49,7 @@ export function PasswordField({
         <button
           type="button"
           className={`${styles.pwdBtn}${copied ? ` ${styles.pwdBtnCopied}` : ""}`}
-          onClick={onCopy}
+          onClick={() => onCopy(value)}
           title={copied ? "copied" : "copy password"}
           tabIndex={-1}
           disabled={disabled || value.length === 0}
@@ -74,7 +59,7 @@ export function PasswordField({
         <button
           type="button"
           className={styles.pwdBtn}
-          onClick={onToggle}
+          onClick={toggleShow}
           title={showPassword ? "hide password" : "show password"}
           tabIndex={-1}
           disabled={disabled || value.length === 0}

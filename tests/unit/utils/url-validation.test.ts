@@ -16,18 +16,16 @@ describe("validateInputUrl", () => {
     if (!r.ok) expect(r.error.type).toBe("EMPTY");
   });
 
-  it("rejects javascript:, data:, ftp:, file:, blob:", () => {
-    for (const bad of [
-      "javascript:alert(1)",
-      "data:text/html,<script>",
-      "ftp://files.example.com",
-      "file:///etc/passwd",
-      "blob:https://example.com/abc",
-    ]) {
-      const r = validateInputUrl(bad);
-      expect(r.ok).toBe(false);
-      if (!r.ok) expect(r.error.type).toBe("UNSUPPORTED_SCHEME");
-    }
+  it.each([
+    "javascript:alert(1)",
+    "data:text/html,<script>",
+    "ftp://files.example.com",
+    "file:///etc/passwd",
+    "blob:https://example.com/abc",
+  ])("rejects unsupported scheme: %s", (bad) => {
+    const r = validateInputUrl(bad);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.type).toBe("UNSUPPORTED_SCHEME");
   });
 
   it("auto-prepends https:// to bare hosts so casual paste input works", () => {
@@ -58,21 +56,19 @@ describe("validateInputUrl", () => {
     if (r.ok) expect(r.value).toBe("https://example.com");
   });
 
-  it("rejects non-hierarchical dangerous schemes up-front (no XSS via auto-prepend)", () => {
-    // These have no `://`, so without an explicit guard we'd glue
-    // `https://` in front of them — and at least `mailto:foo@bar.com` would
-    // then parse cleanly (with the email becoming userinfo + host bar.com).
-    // The dangerous-scheme guard rejects them before the prepend can happen.
-    for (const bad of [
-      "javascript:alert(1)",
-      "data:text/html,<script>",
-      "mailto:foo@bar.com",
-      "tel:+15551234",
-    ]) {
-      const r = validateInputUrl(bad);
-      expect(r.ok).toBe(false);
-      if (!r.ok) expect(r.error.type).toBe("UNSUPPORTED_SCHEME");
-    }
+  // Non-hierarchical schemes with no `://`. Without an explicit guard we'd
+  // glue `https://` in front of them — `mailto:foo@bar.com` would then
+  // parse cleanly (email becomes userinfo + host `bar.com`). The
+  // dangerous-scheme guard rejects them before the prepend can happen.
+  it.each([
+    "javascript:alert(1)",
+    "data:text/html,<script>",
+    "mailto:foo@bar.com",
+    "tel:+15551234",
+  ])("rejects non-hierarchical dangerous scheme up-front: %s", (bad) => {
+    const r = validateInputUrl(bad);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.type).toBe("UNSUPPORTED_SCHEME");
   });
 });
 
