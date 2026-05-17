@@ -75,10 +75,12 @@ Note that the split scripts do **not** auto-coordinate ports; you have to set `W
 Local build + lint + typecheck + quality audit:
 
 ```bash
-npm run build        # tsc -b, vite build, integrity audit — outputs ./dist
+npm run build               # tsc -b, vite build, integrity audit — outputs ./dist
 npm run typecheck
 npm run lint
-npm run verify       # fallow.tools: dead code + duplication + complexity audit
+npm run verify              # fallow.tools: dead code + duplication + complexity audit
+npm run analyze:css         # Project Wallace audit against the built CSS bundle
+npm run analyze:css:source  # …or against the raw src/**/*.css
 ```
 
 `npm run verify` is the project's quality gate. It scans every source file
@@ -86,6 +88,17 @@ for dead code, dead exports, duplicated blocks, and high-complexity
 functions (CRAP score). A clean exit means: 0 dead files, 0 dead
 exports, 0 above-threshold functions, < 2 % duplication, maintainability
 index in the "good" band.
+
+`npm run analyze:css` runs [Project Wallace](https://www.projectwallace.com)
+against `dist/assets/*.css` (so `npm run build` must run first). It
+writes a full JSON report to `.wallace-report.json` and prints a
+headline summary: bundle size, rule/selector/declaration counts,
+specificity + complexity maxes, `!important` usage, unique colour /
+font-size / font-family palettes, distinct `@media` breakpoints, and
+keyframe duplicates. It's a reporter, not a gate — always exits 0 — so
+it's run manually when you want to know the CSS-side health, not on
+every change. `npm run analyze:css:source` does the same against the
+hand-written sources under `src/` and skips the fontsource imports.
 
 ### Production deployment (Cloudflare)
 
