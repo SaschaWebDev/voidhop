@@ -683,6 +683,11 @@
   font-weight: 600;
   cursor: pointer;
   flex-shrink: 0;
+  /* Reserve room for the wider "Copied ✓" label so the click does not
+     change the button's width and shove it onto a new line via the
+     parent's flex-wrap. 32px = the horizontal padding above. */
+  min-width: calc(7.5ch + 32px);
+  text-align: center;
 }
 .resultCopy:hover {
   filter: brightness(1.08);
