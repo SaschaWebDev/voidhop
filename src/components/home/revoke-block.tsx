@@ -23,10 +23,11 @@ export function RevokeBlock({ deleteUrl, copied, onCopy }: RevokeBlockProps) {
       </div>
       <button
         type="button"
-        className={styles.revokeCopy}
+        className={`${styles.revokeCopy}${copied ? ` ${styles.copied}` : ""}`}
         onClick={onCopy}
+        aria-label="Copy delete link"
       >
-        {copied ? "Copied ✓" : "Copy"}
+        Copy
       </button>
     </div>
   );
