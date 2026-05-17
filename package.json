@@ -17,7 +17,9 @@
     "test:e2e": "playwright test",
     "lint": "oxlint src worker tests",
     "typecheck": "tsc -b",
-    "verify": "fallow"
+    "verify": "fallow",
+    "analyze:css": "node scripts/analyze-css.mjs dist/assets",
+    "analyze:css:source": "node scripts/analyze-css.mjs src"
   },
   "dependencies": {
     "@fontsource/fraunces": "^5.2.9",
@@ -33,6 +35,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240924.0",
     "@playwright/test": "^1.48.0",
+    "@projectwallace/css-analyzer": "^9.8.1",
     "@tanstack/router-plugin": "^1.95.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
