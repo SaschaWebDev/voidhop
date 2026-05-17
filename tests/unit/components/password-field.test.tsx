@@ -13,6 +13,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { withClipboard } from "../../helpers/clipboard";
 
 vi.mock("@/utils/generate-password", () => ({
   generatePassword: () => "GeneratedPW123",
@@ -24,13 +25,6 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
 });
-
-function withClipboard(writeText: (s: string) => Promise<void>) {
-  Object.defineProperty(navigator, "clipboard", {
-    configurable: true,
-    value: { writeText },
-  });
-}
 
 describe("PasswordField", () => {
   it("renders the value as a password input by default", () => {
@@ -92,8 +86,7 @@ describe("PasswordField", () => {
 
   it("copy writes to clipboard, hides the password, and shows a copied label", async () => {
     const user = userEvent.setup();
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    withClipboard(writeText);
+    const writeText = withClipboard();
 
     render(<PasswordField value="secret" onChange={vi.fn()} />);
     // Reveal first so we can prove it gets hidden after copy.
@@ -115,13 +108,10 @@ describe("PasswordField", () => {
 
   it("copy is a no-op while feedback is showing", async () => {
     const user = userEvent.setup();
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    withClipboard(writeText);
-
+    const writeText = withClipboard();
     render(<PasswordField value="secret" onChange={vi.fn()} />);
     await user.click(screen.getByTitle("copy password"));
     expect(writeText).toHaveBeenCalledTimes(1);
-
     // Second click during the copied-feedback window is suppressed.
     await user.click(screen.getByTitle("copied"));
     expect(writeText).toHaveBeenCalledTimes(1);

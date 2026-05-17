@@ -28,20 +28,20 @@ describe("assembleFragment", () => {
 });
 
 describe("parseFragment", () => {
-  it("parses v1 fragments (key only) with a leading #", () => {
-    const result = parseFragment(`#${KEY}`);
+  function expectV1(fragment: string): void {
+    const result = parseFragment(fragment);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.keyB64url).toBe(KEY);
     expect(result.saltB64url).toBeNull();
+  }
+
+  it("parses v1 fragments (key only) with a leading #", () => {
+    expectV1(`#${KEY}`);
   });
 
   it("parses v1 fragments without a leading #", () => {
-    const result = parseFragment(KEY);
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.keyB64url).toBe(KEY);
-    expect(result.saltB64url).toBeNull();
+    expectV1(KEY);
   });
 
   it("parses v2 fragments (key + salt)", () => {
@@ -83,10 +83,6 @@ describe("parseFragment", () => {
   });
 
   it("strips a secondary # defensively", () => {
-    const result = parseFragment(`#${KEY}#trailing-garbage`);
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.keyB64url).toBe(KEY);
-    expect(result.saltB64url).toBeNull();
+    expectV1(`#${KEY}#trailing-garbage`);
   });
 });

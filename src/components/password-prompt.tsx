@@ -13,15 +13,13 @@
 
 import { useEffect, useState } from "react";
 import { MAX_PASSWORD_ATTEMPTS } from "@/constants";
-import { copyToClipboard } from "@/hooks/use-shorten-form";
+import { usePasswordCopy } from "@/hooks/use-password-copy";
 import {
   PasswordCopyIcon,
   PasswordEyeIcon,
   PasswordRefreshIcon,
 } from "@/components/icons";
 import { generatePassword } from "@/utils/generate-password";
-
-const COPY_FEEDBACK_MS = 1500;
 
 export interface PasswordPromptProps {
   /** Remaining attempts before the link self-destructs. */
@@ -140,17 +138,7 @@ function PasswordUnlockField({
   onChange: (next: string) => void;
   disabled: boolean;
 }) {
-  const [showPassword, setShowPassword] = useState(false);
-  const [copied, setCopied] = useState(false);
-
-  const onCopy = async () => {
-    if (copied || value.length === 0) return;
-    if (await copyToClipboard(value)) {
-      setShowPassword(false);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), COPY_FEEDBACK_MS);
-    }
-  };
+  const { showPassword, copied, toggleShow, reveal, onCopy } = usePasswordCopy();
 
   return (
     <div className="pwd-field">
@@ -168,7 +156,7 @@ function PasswordUnlockField({
       <button
         type="button"
         className={`pwd-field-btn${copied ? " pwd-field-btn-copied" : ""}`}
-        onClick={onCopy}
+        onClick={() => onCopy(value)}
         title={copied ? "copied" : "copy password"}
         tabIndex={-1}
         disabled={disabled || value.length === 0}
@@ -178,7 +166,7 @@ function PasswordUnlockField({
       <button
         type="button"
         className="pwd-field-btn"
-        onClick={() => setShowPassword((v) => !v)}
+        onClick={toggleShow}
         title={showPassword ? "hide password" : "show password"}
         tabIndex={-1}
         disabled={disabled || value.length === 0}
@@ -190,7 +178,7 @@ function PasswordUnlockField({
         className="pwd-field-btn"
         onClick={() => {
           onChange(generatePassword());
-          setShowPassword(true);
+          reveal();
         }}
         title="generate random password"
         tabIndex={-1}

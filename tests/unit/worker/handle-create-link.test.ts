@@ -10,18 +10,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Context } from "hono";
 import type { HonoEnv } from "../../../worker/types";
 import { handleCreateLink } from "../../../worker/routes/links";
-
-class FakeKV {
-  store = new Map<string, string>();
-  get = vi.fn(async (key: string) => this.store.get(key) ?? null);
-  put = vi.fn(async (key: string, value: string) => {
-    this.store.set(key, value);
-  });
-  delete = vi.fn(async (key: string) => {
-    this.store.delete(key);
-  });
-  list = vi.fn(async () => ({ keys: [], list_complete: true, cursor: "" }));
-}
+import { FakeKV } from "../../helpers/fake-kv";
 
 interface CtxOptions {
   body: unknown;
@@ -65,73 +54,87 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+/**
+ * Run the handler against `body` and return the parsed JSON id plus the
+ * persisted record. Asserts a 201 status — fails the test if not.
+ */
+async function runCreateAndGetRecord(
+  body: unknown,
+): Promise<{ id: string; record: Record<string, unknown>; kv: FakeKV }> {
+  const { ctx, kv } = makeCtx({ body });
+  const res = await handleCreateLink(ctx);
+  expect(res.status).toBe(201);
+  const { id } = (await res.json()) as { id: string };
+  const record = JSON.parse(kv.store.get(`links:${id}`) as string) as Record<
+    string,
+    unknown
+  >;
+  return { id, record, kv };
+}
+
+async function expectErrorResponse(
+  body: unknown,
+  status: number,
+  errorCode: string,
+): Promise<void> {
+  const { ctx } = makeCtx({ body });
+  const res = await handleCreateLink(ctx);
+  expect(res.status).toBe(status);
+  expect(await res.json()).toEqual({ error: errorCode });
+}
+
 describe("handleCreateLink", () => {
   it("happy path: persists a v1 record and returns 201 with id", async () => {
-    const { ctx, kv } = makeCtx({ body: { blob: VALID_BLOB, ttl: 3600 } });
-    const res = await handleCreateLink(ctx);
-    expect(res.status).toBe(201);
-    const body = (await res.json()) as { id: string };
-    expect(typeof body.id).toBe("string");
-    expect(body.id.length).toBeGreaterThanOrEqual(6);
-    // The record was persisted with `links:<id>` key per the store impl.
-    const stored = kv.store.get(`links:${body.id}`);
-    expect(stored).toBeDefined();
-    const record = JSON.parse(stored as string) as {
-      blob: string;
-      version: number;
-    };
+    const { id, record } = await runCreateAndGetRecord({
+      blob: VALID_BLOB,
+      ttl: 3600,
+    });
+    expect(typeof id).toBe("string");
+    expect(id.length).toBeGreaterThanOrEqual(6);
     expect(record.blob).toBe(VALID_BLOB);
     expect(record.version).toBe(1);
   });
 
   it("v2 path: with verifier produces a version-2 record", async () => {
-    const { ctx, kv } = makeCtx({
-      body: {
-        blob: VALID_BLOB,
-        ttl: 3600,
-        verifier: "v".repeat(43),
-      },
+    const { record } = await runCreateAndGetRecord({
+      blob: VALID_BLOB,
+      ttl: 3600,
+      verifier: "v".repeat(43),
     });
-    const res = await handleCreateLink(ctx);
-    expect(res.status).toBe(201);
-    const body = (await res.json()) as { id: string };
-    const record = JSON.parse(kv.store.get(`links:${body.id}`) as string) as {
-      version: number;
-      verifier: string;
-    };
     expect(record.version).toBe(2);
     expect(record.verifier).toBe("v".repeat(43));
   });
 
-  it("returns 400 INVALID_BLOB when the body is not JSON", async () => {
-    const { ctx } = makeCtx({ body: undefined, bodyThrows: true });
-    const res = await handleCreateLink(ctx);
-    expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: "INVALID_BLOB" });
-  });
-
-  it("returns 400 INVALID_BLOB when the body is not an object", async () => {
-    const { ctx } = makeCtx({ body: "literal string" });
-    const res = await handleCreateLink(ctx);
-    expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: "INVALID_BLOB" });
-  });
-
-  it("returns 400 INVALID_TTL when the ttl is not in the allow-list", async () => {
-    const { ctx } = makeCtx({ body: { blob: VALID_BLOB, ttl: 60 } });
-    const res = await handleCreateLink(ctx);
-    expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: "INVALID_TTL" });
-  });
-
-  it("returns 400 INVALID_VERIFIER on a malformed verifier", async () => {
-    const { ctx } = makeCtx({
-      body: { blob: VALID_BLOB, ttl: 3600, verifier: "short" },
-    });
-    const res = await handleCreateLink(ctx);
-    expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: "INVALID_VERIFIER" });
-  });
+  it.each([
+    ["body is not JSON (parse fails)", undefined, true, 400, "INVALID_BLOB"],
+    ["body is not an object", "literal string", false, 400, "INVALID_BLOB"],
+    [
+      "ttl is not in the allow-list",
+      { blob: VALID_BLOB, ttl: 60 },
+      false,
+      400,
+      "INVALID_TTL",
+    ],
+    [
+      "verifier is malformed",
+      { blob: VALID_BLOB, ttl: 3600, verifier: "short" },
+      false,
+      400,
+      "INVALID_VERIFIER",
+    ],
+  ] as const)(
+    "rejects when %s",
+    async (_, body, bodyThrows, status, code) => {
+      if (bodyThrows) {
+        const { ctx } = makeCtx({ body, bodyThrows: true });
+        const res = await handleCreateLink(ctx);
+        expect(res.status).toBe(status);
+        expect(await res.json()).toEqual({ error: code });
+      } else {
+        await expectErrorResponse(body, status, code);
+      }
+    },
+  );
 
   it("returns 500 STORAGE_ERROR if KV.put rejects", async () => {
     const kv = new FakeKV();
@@ -162,21 +165,12 @@ describe("handleCreateLink", () => {
   });
 
   it("includes usesLeft and deletionTokenHash on the persisted record when supplied", async () => {
-    const { ctx, kv } = makeCtx({
-      body: {
-        blob: VALID_BLOB,
-        ttl: 3600,
-        usesLeft: 5,
-        deletionTokenHash: "h".repeat(43),
-      },
+    const { record } = await runCreateAndGetRecord({
+      blob: VALID_BLOB,
+      ttl: 3600,
+      usesLeft: 5,
+      deletionTokenHash: "h".repeat(43),
     });
-    const res = await handleCreateLink(ctx);
-    expect(res.status).toBe(201);
-    const body = (await res.json()) as { id: string };
-    const record = JSON.parse(kv.store.get(`links:${body.id}`) as string) as {
-      usesLeft: number;
-      deletionTokenHash: string;
-    };
     expect(record.usesLeft).toBe(5);
     expect(record.deletionTokenHash).toBe("h".repeat(43));
   });

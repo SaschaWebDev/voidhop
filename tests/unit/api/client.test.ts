@@ -19,15 +19,9 @@ import {
   unlockLink,
 } from "@/api/client";
 import { ApiError } from "@/api/types";
+import { jsonResponse } from "../../helpers/json-response";
 
 type FetchMock = ReturnType<typeof vi.fn>;
-
-function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
-  return new Response(JSON.stringify(body), {
-    ...init,
-    headers: { "Content-Type": "application/json", ...(init.headers ?? {}) },
-  });
-}
 
 let fetchMock: FetchMock;
 beforeEach(() => {
