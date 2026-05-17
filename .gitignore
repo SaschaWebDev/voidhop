@@ -45,4 +45,5 @@ yarn-error.log*
 # Audit / report artifacts (.fallowrc.json is committed; the report output isn't)
 .fallow-report.json
 .fallow/
+.wallace-report.json
 chrome-lighthouse-*.json

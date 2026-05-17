@@ -2,14 +2,14 @@
 
 :root {
   --bg: #f8fafc;
-  --bg-elevated: #ffffff;
+  --bg-elevated: #fff;
   --fg: #0f172a;
   --fg-muted: #475569;
   --fg-faint: #94a3b8;
   --border: #e2e8f0;
   --border-strong: #cbd5e1;
   --accent: #0891b2;
-  --accent-fg: #ffffff;
+  --accent-fg: #fff;
   --accent-hover: #0e7490;
   --error-bg: #fef2f2;
   --error-border: #fecaca;
@@ -23,6 +23,13 @@
   --shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
   --radius: 8px;
   --radius-sm: 4px;
+
+  /* Type stacks — shared by the global stylesheet. The home/cosmic route
+     uses its own `--home-sans/display/mono` set inside index.module.css. */
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
+    Cantarell, "Helvetica Neue", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
 html.dark {
@@ -58,9 +65,7 @@ body {
   padding: 0;
   background: var(--bg);
   color: var(--fg);
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
-    Cantarell, "Helvetica Neue", sans-serif;
+  font-family: var(--font-sans);
   font-size: 16px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
@@ -262,7 +267,7 @@ button:focus-visible {
 }
 .result-url input {
   flex: 1;
-  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.875rem;
 }
 .result-meta {
@@ -280,7 +285,7 @@ button:focus-visible {
   max-width: 200px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: white;
+  background: #fff;
   padding: 8px;
 }
 
