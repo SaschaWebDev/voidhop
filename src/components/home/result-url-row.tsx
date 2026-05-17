@@ -47,8 +47,13 @@ export function ResultUrlRow({
           </div>
         )}
         <span className={styles.resultUrl}>{shortUrl}</span>
-        <button type="button" className={styles.resultCopy} onClick={onCopy}>
-          {copied ? "Copied ✓" : "Copy"}
+        <button
+          type="button"
+          className={`${styles.resultCopy}${copied ? ` ${styles.copied}` : ""}`}
+          onClick={onCopy}
+          aria-label="Copy short link"
+        >
+          Copy
         </button>
       </div>
       <div className={styles.qr} aria-label="QR code">

@@ -20,6 +20,7 @@ vi.mock("qrcode-generator", () => ({
 }));
 
 import { ResultUrlRow } from "@/components/home/result-url-row";
+import styles from "@/routes/index.module.css";
 
 afterEach(() => cleanup());
 
@@ -35,7 +36,7 @@ describe("ResultUrlRow", () => {
   it("renders the short URL and an enabled Copy button", () => {
     render(<ResultUrlRow {...baseProps} />);
     expect(screen.getByText("https://voidhop.test/abc")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Copy" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /^Copy short link$/i })).toBeEnabled();
   });
 
   it("renders the doodle nudge until the user has copied once", () => {
@@ -48,19 +49,37 @@ describe("ResultUrlRow", () => {
     expect(screen.queryByText("copy this")).not.toBeInTheDocument();
   });
 
-  it("flips the button label to 'Copied ✓' when the copied prop is true", () => {
+  it("keeps the 'Copy' label and adds the visual-feedback class when copied=true", () => {
+    // The button's text and accessible name must stay "Copy" — feedback is
+    // delivered via animation, not via the label. The .copied modifier class
+    // is what drives the CSS @keyframes that signals success.
     render(<ResultUrlRow {...baseProps} copied={true} />);
+    const button = screen.getByRole("button", { name: /^Copy short link$/i });
+    expect(button).toBeInTheDocument();
+    expect(button.classList.contains(styles.copied as string)).toBe(true);
     expect(
-      screen.getByRole("button", { name: /Copied ✓/i }),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Copy" })).not.toBeInTheDocument();
+      screen.queryByRole("button", { name: /Copied ✓/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("omits the visual-feedback class when copied=false", () => {
+    render(<ResultUrlRow {...baseProps} copied={false} />);
+    const button = screen.getByRole("button", { name: /^Copy short link$/i });
+    expect(button.classList.contains(styles.copied as string)).toBe(false);
+  });
+
+  it("renders the visible label 'Copy' regardless of copied state", () => {
+    const { rerender } = render(<ResultUrlRow {...baseProps} copied={false} />);
+    expect(screen.getByText("Copy")).toBeInTheDocument();
+    rerender(<ResultUrlRow {...baseProps} copied={true} />);
+    expect(screen.getByText("Copy")).toBeInTheDocument();
   });
 
   it("invokes onCopy when the Copy button is clicked", async () => {
     const onCopy = vi.fn();
     const user = userEvent.setup();
     render(<ResultUrlRow {...baseProps} onCopy={onCopy} />);
-    await user.click(screen.getByRole("button", { name: "Copy" }));
+    await user.click(screen.getByRole("button", { name: /^Copy short link$/i }));
     expect(onCopy).toHaveBeenCalledTimes(1);
   });
 

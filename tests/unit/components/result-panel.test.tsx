@@ -111,7 +111,7 @@ describe("ResultPanel", () => {
     withClipboard(true);
     render(<ResultPanel {...baseProps} onReset={onReset} />);
     // Click the short-url Copy button first.
-    await user.click(screen.getByRole("button", { name: "Copy" }));
+    await user.click(screen.getByRole("button", { name: /^Copy short link$/i }));
     // First click on reset now goes through.
     await user.click(screen.getByRole("button", { name: /Shorten another/i }));
     expect(onReset).toHaveBeenCalledTimes(1);
@@ -127,11 +127,12 @@ describe("ResultPanel", () => {
         deleteUrl="https://voidhop.test/delete/abc#tok"
       />,
     );
-    // Two "Copy" buttons render: the first is the URL row, the second is
-    // the revoke block (DOM order matches JSX order).
-    const copyButtons = screen.getAllByRole("button", { name: "Copy" });
-    expect(copyButtons.length).toBeGreaterThanOrEqual(2);
-    await user.click(copyButtons[1] as HTMLElement);
+    // Two copy buttons render with distinct accessible names so screen
+    // readers can disambiguate them. The revoke block's button targets
+    // the delete URL.
+    await user.click(
+      screen.getByRole("button", { name: /^Copy delete link$/i }),
+    );
     expect(writeText).toHaveBeenCalledWith(
       "https://voidhop.test/delete/abc#tok",
     );
