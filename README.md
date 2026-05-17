@@ -72,13 +72,20 @@ Note that the split scripts do **not** auto-coordinate ports; you have to set `W
 
 ## Build & deploy
 
-Local build + lint + typecheck:
+Local build + lint + typecheck + quality audit:
 
 ```bash
 npm run build        # tsc -b, vite build, integrity audit — outputs ./dist
 npm run typecheck
 npm run lint
+npm run verify       # fallow.tools: dead code + duplication + complexity audit
 ```
+
+`npm run verify` is the project's quality gate. It scans every source file
+for dead code, dead exports, duplicated blocks, and high-complexity
+functions (CRAP score). A clean exit means: 0 dead files, 0 dead
+exports, 0 above-threshold functions, < 2 % duplication, maintainability
+index in the "good" band.
 
 ### Production deployment (Cloudflare)
 
@@ -96,18 +103,29 @@ See [`docs/SELF-HOSTING.md`](./docs/SELF-HOSTING.md) for the long version includ
 ## Testing
 
 ```bash
-npm test          # unit + integration (Vitest + Miniflare)
+npm test          # unit tests (Vitest + happy-dom + React Testing Library)
 npm run test:e2e  # end-to-end (Playwright)
 ```
+
+The unit suite (`tests/unit/**`) is the gate that runs on every change.
+A Miniflare-backed integration suite lives at `tests/integration/` for
+full HTTP-request lifecycle coverage; it's not currently in the default
+Vitest include glob (run it directly with
+`npx vitest run --dir tests/integration` if you want it).
 
 Security-critical paths covered by tests:
 
 - AES-256-GCM round-trip across all bucket sizes
 - Length-prefix padding boundary cases (incl. the v1.0 `0x01` delimiter footgun)
-- IPv6 /64 subnet collapse for rate limiting
-- TTL ceiling enforcement on POST
-- 400 → 404 collapse on GET/HEAD/DELETE for invalid ID format
-- `Cache-Control: no-store, no-cache` on every status code (incl. error responses)
+- IPv6 /64 subnet collapse for rate limiting (`expandIpv6`, `isValidHextet`, `ipBucket`)
+- TTL ceiling enforcement on POST + every input validator (id, blob, verifier, uses-left, deletion-token hash)
+- 400 → 404 collapse on GET/HEAD/DELETE for invalid ID format (anti-enumeration)
+- Constant-time verifier compare + the password-unlock backoff gate
+- The full POST/GET/HEAD/UNLOCK/DELETE handler bodies, exercised against an in-memory KV stub
+- All four ApiError surfaces (`createLink`, `unlockLink`, `getBlob` w/ KV-replication retry, `deleteLink`) over a mocked `fetch`
+- The redirect state machine's error-mapping and unlock-outcome reducer
+- Every React component on the create + result + delete flows (URL field, TTL radiogroup, password reveal/copy, QR + share row, revoke block, two-click reset gate)
+- `Cache-Control: no-store, no-cache` on every status code (incl. error responses) — exercised by the integration suite
 
 ## Privacy guarantees
 
