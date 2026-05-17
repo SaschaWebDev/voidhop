@@ -13,6 +13,8 @@
 #     `script-src 'self'` constraint already neutralizes the main attack paths
 #     that inline styles would otherwise enable.
 #   - `img-src 'self' data:` because QR codes are inlined as data URIs.
+#   - `font-src 'self' data:` because Vite inlines small @fontsource subsets
+#     as base64 data URIs when they fall under `build.assetsInlineLimit`.
 #   - `frame-ancestors 'none'` blocks clickjacking; `form-action 'self'`
 #     prevents form hijacking; `base-uri 'none'` prevents `<base>` hijack;
 #     `object-src 'none'` blocks legacy plugin content.
@@ -20,7 +22,7 @@
 #     edge from serving stale or tampered HTML.
 
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests
   Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
   Referrer-Policy: no-referrer
   X-Content-Type-Options: nosniff

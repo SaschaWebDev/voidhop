@@ -21,7 +21,7 @@ const CSP =
   "style-src 'self' 'unsafe-inline'; " +
   "img-src 'self' data:; " +
   "connect-src 'self'; " +
-  "font-src 'self'; " +
+  "font-src 'self' data:; " +
   "object-src 'none'; " +
   "base-uri 'none'; " +
   "frame-ancestors 'none'; " +
