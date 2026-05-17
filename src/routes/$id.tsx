@@ -8,6 +8,7 @@
 
 import { createFileRoute } from "@tanstack/react-router";
 import { useRedirect } from "@/hooks/use-redirect";
+import { useDocumentHead } from "@/hooks/use-document-head";
 import { RedirectStatus } from "@/components/redirect-status";
 import { ErrorDisplay } from "@/components/error-display";
 import { PasswordPrompt } from "@/components/password-prompt";
@@ -18,6 +19,10 @@ export const Route = createFileRoute("/$id")({
 });
 
 function RedirectPage() {
+  useDocumentHead({
+    title: "Opening link — VoidHop",
+    robots: "noindex,nofollow",
+  });
   const { id } = Route.useParams();
   const {
     state,

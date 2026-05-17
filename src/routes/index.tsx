@@ -25,6 +25,7 @@ import "@fontsource/jetbrains-mono/400.css";
 
 import { createFileRoute } from "@tanstack/react-router";
 import { useShortenForm, formatExpiry } from "@/hooks/use-shorten-form";
+import { useDocumentHead } from "@/hooks/use-document-head";
 import { Stars, Portal } from "@/components/home/background";
 import { PageHeader } from "@/components/home/page-header";
 import { PageFooter } from "@/components/home/page-footer";
@@ -37,6 +38,12 @@ import styles from "./index.module.css";
 export const Route = createFileRoute("/")({ component: Home });
 
 function Home() {
+  useDocumentHead({
+    title: "VoidHop — Zero-knowledge URL shortener",
+    description:
+      "VoidHop is a zero-knowledge URL shortener. Your browser encrypts the destination with AES-256-GCM before it leaves your device. The server stores only opaque ciphertext.",
+    canonical: "https://voidhop.com/",
+  });
   const f = useShortenForm();
   const hopping = f.isBusy;
 

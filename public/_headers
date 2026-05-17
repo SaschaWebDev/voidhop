@@ -2,10 +2,15 @@
 #
 # Applies to the static SPA deployed on Pages. The `/api/*` routes are served
 # by the Worker and have their own security headers set in
-# `worker/middleware/security-headers.ts`.
+# `worker/middleware/security-headers.ts` — keep the two CSPs in sync.
 #
-# CSP rationale is documented in the plan file; highlights:
-#   - `script-src 'self'` blocks inline scripts, eval, and cross-origin scripts.
+# CSP rationale:
+#   - `script-src 'self' 'sha256-...'` blocks inline scripts, eval, and
+#     cross-origin scripts. The single sha256 token whitelists the inline
+#     JSON-LD block in `index.html`. To regenerate after editing the JSON-LD:
+#       printf '%s' '<exact body between the script tags>' \
+#         | openssl dgst -sha256 -binary | openssl base64
+#     Then update both this file and `worker/middleware/security-headers.ts`.
 #   - `connect-src 'self'` prevents any exfil channel to third-party domains —
 #     even if a bug injects a `fetch()` call, it cannot reach outside the site.
 #   - `style-src 'self' 'unsafe-inline'` is intentionally permissive because
@@ -15,6 +20,8 @@
 #   - `img-src 'self' data:` because QR codes are inlined as data URIs.
 #   - `font-src 'self' data:` because Vite inlines small @fontsource subsets
 #     as base64 data URIs when they fall under `build.assetsInlineLimit`.
+#   - `worker-src 'self'` allows registering `/sw.js` (PWA service worker).
+#   - `manifest-src 'self'` explicitly allows the webmanifest fetch.
 #   - `frame-ancestors 'none'` blocks clickjacking; `form-action 'self'`
 #     prevents form hijacking; `base-uri 'none'` prevents `<base>` hijack;
 #     `object-src 'none'` blocks legacy plugin content.
@@ -22,7 +29,7 @@
 #     edge from serving stale or tampered HTML.
 
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-cR67DeUg1WHrPlwzNohtJ3ZPPSbA0FCK3TLNIPHa2L8='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self' data:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests
   Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
   Referrer-Policy: no-referrer
   X-Content-Type-Options: nosniff
@@ -35,3 +42,41 @@
 # immutable cache is safe and cheap.
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
+
+# PWA manifest. Served with the correct content-type so Chrome/Edge parse it.
+# Short cache so manifest tweaks (icon updates, name changes) propagate fast.
+/manifest.webmanifest
+  Content-Type: application/manifest+json
+  Cache-Control: public, max-age=3600
+
+# Service worker. `no-store` is the standard recommendation: a buggy SW must
+# be replaceable by deploying a new one. `Service-Worker-Allowed: /` lets the
+# script claim the full origin even if it were ever served from a sub-path.
+/sw.js
+  Cache-Control: no-store
+  Service-Worker-Allowed: /
+
+# Static icons + screenshots live at the public root (so iOS Safari and
+# Chrome's PWA install UI find them at their conventional default paths).
+# Listed individually because Cloudflare Pages headers do not support a
+# regex/glob that matches "any *.png at the root".
+/favicon.ico
+  Cache-Control: public, max-age=2592000, immutable
+/favicon-32x32.png
+  Cache-Control: public, max-age=2592000, immutable
+/apple-touch-icon.png
+  Cache-Control: public, max-age=2592000, immutable
+/icon-192.png
+  Cache-Control: public, max-age=2592000, immutable
+/icon-512.png
+  Cache-Control: public, max-age=2592000, immutable
+/maskable-512.png
+  Cache-Control: public, max-age=2592000, immutable
+/screenshot-wide.png
+  Cache-Control: public, max-age=2592000, immutable
+/screenshot-narrow.png
+  Cache-Control: public, max-age=2592000, immutable
+
+# OG image — long cache, but not "immutable" so we can re-upload if needed.
+/og-image.jpg
+  Cache-Control: public, max-age=2592000

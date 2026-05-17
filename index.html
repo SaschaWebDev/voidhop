@@ -2,16 +2,51 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#0f172a" />
+    <meta name="referrer" content="no-referrer" />
+
+    <title>VoidHop — Zero-knowledge URL shortener</title>
     <meta
       name="description"
-      content="VoidHop — zero-knowledge URL shortener. Encrypts client-side, server stores only opaque ciphertext."
+      content="VoidHop is a zero-knowledge URL shortener. Your browser encrypts the destination with AES-256-GCM before it leaves your device. The server stores only opaque ciphertext."
     />
-    <meta name="referrer" content="no-referrer" />
-    <meta name="robots" content="noindex,nofollow" />
-    <title>VoidHop</title>
+    <link rel="canonical" href="https://voidhop.com/" />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="VoidHop" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="VoidHop" />
+    <meta property="og:title" content="VoidHop — Zero-knowledge URL shortener" />
+    <meta
+      property="og:description"
+      content="Encrypts URLs client-side with AES-256-GCM. The server stores only opaque ciphertext — no destinations, no keys, no logs."
+    />
+    <meta property="og:url" content="https://voidhop.com/" />
+    <meta property="og:image" content="https://voidhop.com/og-image.jpg" />
+    <meta property="og:image:width" content="1024" />
+    <meta property="og:image:height" content="541" />
+    <meta property="og:image:alt" content="VoidHop — zero-knowledge URL shortener" />
+    <meta property="og:locale" content="en_US" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="VoidHop — Zero-knowledge URL shortener" />
+    <meta
+      name="twitter:description"
+      content="Encrypts URLs client-side with AES-256-GCM. The server stores only opaque ciphertext — no destinations, no keys, no logs."
+    />
+    <meta name="twitter:image" content="https://voidhop.com/og-image.jpg" />
+    <meta name="twitter:image:alt" content="VoidHop — zero-knowledge URL shortener" />
+
+    <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","@id":"https://voidhop.com/#website","url":"https://voidhop.com/","name":"VoidHop","description":"Zero-knowledge URL shortener. Encrypts client-side; server stores only opaque ciphertext.","inLanguage":"en"},{"@type":"SoftwareApplication","@id":"https://voidhop.com/#app","name":"VoidHop","applicationCategory":"UtilitiesApplication","operatingSystem":"Any","url":"https://voidhop.com/","description":"A zero-knowledge URL shortener. Your browser encrypts the destination URL with AES-256-GCM before it leaves your device. The server stores only opaque ciphertext.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}]}</script>
   </head>
   <body>
     <div id="root"></div>

@@ -31,15 +31,39 @@ const html = readFileSync(INDEX_PATH, "utf8");
 const TAG_RE = /<(script|link|img)\b[^>]*>/gi;
 const URL_ATTR_RE = /\b(src|href)\s*=\s*"([^"]+)"/i;
 const INTEGRITY_RE = /\bintegrity\s*=\s*"[^"]+"/i;
+const REL_ATTR_RE = /\brel\s*=\s*"([^"]+)"/i;
+
+// `<link rel>` values that the browser actually fetches as a sub-resource.
+// Everything else (canonical, alternate, dns-prefetch, preconnect, ...) is
+// metadata / hints and never executes or styles anything, so a cross-origin
+// URL there is not a security boundary the build guard needs to police.
+const FETCHING_LINK_RELS = new Set([
+  "stylesheet",
+  "preload",
+  "modulepreload",
+  "prefetch",
+  "prerender",
+  "icon",
+  "shortcut icon",
+  "apple-touch-icon",
+  "apple-touch-icon-precomposed",
+  "manifest",
+  "mask-icon",
+]);
 
 const problems = [];
 for (const match of html.matchAll(TAG_RE)) {
   const tag = match[0];
+  const tagName = match[1].toLowerCase();
   const urlAttr = URL_ATTR_RE.exec(tag);
   if (!urlAttr) continue;
   const url = urlAttr[2];
   if (!/^https?:/i.test(url)) continue; // relative / data: / protocol-relative handled elsewhere
   if (INTEGRITY_RE.test(tag)) continue;
+  if (tagName === "link") {
+    const rel = REL_ATTR_RE.exec(tag)?.[1]?.trim().toLowerCase();
+    if (!rel || !FETCHING_LINK_RELS.has(rel)) continue;
+  }
   problems.push({ tag, url });
 }
 
